@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Quiz Live</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        .hidden { display: none !important; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; width: 100%; transition: 0.3s; font-weight: 500; }
+        .btn-ans:hover { transform: scale(1.02); background-color: #f8f9fa; }
+        .leaderboard-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+        .rank-1 { background: #fff3cd; font-weight: bold; border-radius: 8px; }
+        #qr-display img { width: 200px; border-radius: 10px; margin-top: 15px; }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container py-4">
+    <div id="role-selection" class="row justify-content-center py-5">
+        <div class="col-md-6 card p-5 text-center">
+            <h2 class="text-primary fw-bold mb-4">STUDYING BY AI</h2>
+            <div class="d-grid gap-3">
+                <button class="btn btn-primary btn-lg fw-bold" onclick="showUI('host')">BẢNG ĐIỀU KHIỂN HOST</button>
+                <button class="btn btn-outline-dark btn-lg fw-bold" onclick="showUI('user')">THAM GIA THI (USER)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="host-ui" class="hidden">
+        <div class="row g-4">
+            <div class="col-md-7">
+                <div class="card p-4">
+                    <h5 class="fw-bold mb-3">Cài đặt câu hỏi</h5>
+                    <ul class="nav nav-pills mb-3" id="pills-tab">
+                        <li class="nav-item w-50">
+                            <button class="nav-link active w-100" onclick="toggleHostMode('ai')">AI Tự Soạn</button>
+                        </li>
+                        <li class="nav-item w-50">
+                            <button class="nav-link w-100" onclick="toggleHostMode('file')">Upload File</button>
+                        </li>
+                    </ul>
+
+                    <div id="mode-ai">
+                        <div class="input-group mb-2">
+                            <input type="text" id="ai-topic" class="form-control" placeholder="Nhập chủ đề (VD: Ngữ Văn lớp 12)">
+                            <button class="btn btn-success" onclick="generateAI()">Tạo bằng AI</button>
+                        </div>
+                    </div>
+
+                    <div id="mode-file" class="hidden">
+                        <input type="file" id="file-input" class="form-control" accept=".csv,.xlsx,.pdf,.docx,.txt">
+                    </div>
+
+                    <div id="host-status" class="hidden text-center my-3">
+                        <div class="spinner-border text-primary"></div>
+                        <p>Đang xử lý dữ liệu...</p>
+                    </div>
+
+                    <div id="qr-result" class="hidden text-center mt-3 border-top pt-3">
+                        <div id="qr-display"></div>
+                        <button id="start-btn" class="btn btn-danger btn-lg w-100 mt-3 fw-bold" onclick="startNow()">BẮT ĐẦU TRẬN ĐẤU</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="card p-4">
+                    <h5 class="text-center fw-bold text-primary mb-3">BẢNG XẾP HẠNG LIVE</h5>
+                    <div id="lb-host"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-ui" class="hidden mx-auto" style="max-width: 600px;">
+        <div id="user-join" class="card p-4">
+            <h4 class="text-center mb-3">Nhập tên bạn</h4>
+            <input type="text" id="user-name" class="form-control mb-3" placeholder="Tên của bạn...">
+            <button class="btn btn-primary w-100 fw-bold" onclick="userJoin()">VÀO PHÒNG CHỜ</button>
+        </div>
+
+        <div id="quiz-area" class="hidden mt-3">
+            <div id="waiting-screen" class="card p-5 text-center mb-3">
+                <div class="spinner-grow text-warning mb-2"></div>
+                <h4>Đã kết nối!</h4>
+                <p class="text-muted">Chờ Host nhấn Bắt đầu...</p>
+            </div>
+
+            <div id="question-card" class="card p-4 hidden">
+                <div class="d-flex justify-content-between mb-3 text-primary fw-bold">
+                    <span id="q-idx"></span>
+                    <span id="u-score">Điểm: 0</span>
+                </div>
+                <h4 id="q-text" class="mb-4"></h4>
+                <div id="q-options"></div>
+            </div>
+
+            <div class="card p-3 mt-3 shadow-sm">
+                <h6 class="text-center fw-bold small text-muted">BXH TRỰC TUYẾN</h6>
+                <div id="lb-user"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    let quizData = [], currentQ = 0, score = 0;
+
+    function showUI(role) {
+        document.getElementById('role-selection').classList.add('hidden');
+        document.getElementById(role + '-ui').classList.remove('hidden');
+    }
+
+    function toggleHostMode(mode) {
+        document.getElementById('mode-ai').classList.toggle('hidden', mode !== 'ai');
+        document.getElementById('mode-file').classList.toggle('hidden', mode !== 'file');
+        const btns = document.querySelectorAll('.nav-link');
+        btns[0].classList.toggle('active', mode === 'ai');
+        btns[1].classList.toggle('active', mode === 'file');
+    }
+
+    // --- HOST ---
+    function generateAI() {
+        const topic = document.getElementById('ai-topic').value;
+        if(!topic) return alert("Vui lòng nhập chủ đề!");
+        document.getElementById('host-status').classList.remove('hidden');
+        socket.emit('host_generate_ai', { topic });
+    }
+
+    document.getElementById('file-input').onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        document.getElementById('host-status').classList.remove('hidden');
+        reader.onload = () => socket.emit('host_upload_file', { name: file.name, content: reader.result });
+        reader.readAsDataURL(file);
+    };
+
+    function startNow() {
+        socket.emit('start_game');
+        document.getElementById('start-btn').disabled = true;
+    }
+
+    socket.on('qr_ready', d => {
+        document.getElementById('host-status').classList.add('hidden');
+        document.getElementById('qr-result').classList.remove('hidden');
+        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}">`;
+    });
+
+    // --- USER ---
+    function userJoin() {
+        const name = document.getElementById('user-name').value;
+        if(!name) return alert("Nhập tên!");
+        socket.emit('join_game', { name });
+        document.getElementById('user-join').classList.add('hidden');
+        document.getElementById('quiz-area').classList.remove('hidden');
+    }
+
+    socket.on('game_init', d => {
+        quizData = d.questions;
+        if(d.already_started) runGame();
+    });
+
+    socket.on('game_is_live', runGame);
+
+    function runGame() {
+        document.getElementById('waiting-screen').classList.add('hidden');
+        document.getElementById('question-card').classList.remove('hidden');
+        renderQ();
+    }
+
+    function renderQ() {
+        if(currentQ >= quizData.length) {
+            document.getElementById('question-card').innerHTML = "<h3 class='text-center text-success py-4'>HOÀN THÀNH! 🎉</h3>";
+            return;
+        }
+        const q = quizData[currentQ];
+        document.getElementById('q-idx').innerText = `Câu ${currentQ+1}/10`;
+        document.getElementById('q-text').innerText = q.q;
+        let h = '';
+        ['a','b','c','d'].forEach(o => {
+            h += `<button class="btn btn-outline-primary btn-ans" onclick="check('${o}')"><b>${o.toUpperCase()}.</b> ${q[o]}</button>`;
+        });
+        document.getElementById('q-options').innerHTML = h;
+    }
+
+    function check(o) {
+        const correct = o.toUpperCase() === quizData[currentQ].ans.toUpperCase();
+        if(correct) {
+            score += 10;
+            document.getElementById('u-score').innerText = `Điểm: ${score}`;
+        }
+        socket.emit('submit_answer', { correct });
+        currentQ++; renderQ();
+    }
+
+    // --- LEADEREBOARD LIVE ---
+    socket.on('update_leaderboard', list => {
+        const html = list.map((p, i) => `
+            <div class="leaderboard-item ${i===0?'rank-1':''}">
+                <span>${i+1}. ${p.name}</span>
+                <span class="badge bg-primary rounded-pill">${p.score}đ</span>
+            </div>`).join('');
+        document.getElementById('lb-host').innerHTML = html;
+        document.getElementById('lb-user').innerHTML = html;
+    });
+
+    socket.on('error', e => alert(e.msg));
+</script>
+</body>
+</html>
