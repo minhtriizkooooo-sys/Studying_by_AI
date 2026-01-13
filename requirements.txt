@@ -1,0 +1,11 @@
+flask
+flask-socketio
+eventlet
+gunicorn
+qrcode
+pillow
+groq
+pandas
+openpyxl
+pymupdf
+python-docx
