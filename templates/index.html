@@ -12,6 +12,7 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
 
+        /* HEADER */
         header { 
             background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
             color: white; padding: 0 15px; height: 60px; 
@@ -21,22 +22,27 @@
         .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
         .logo img { height: 48px; width: auto; object-fit: contain; }
 
+        /* MAIN & CARDS */
         main { flex: 1; padding: 20px 10px; }
         .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; position: relative; }
         .hidden { display: none !important; }
         
         /* TIMER BAR */
         .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
-        #timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
+        #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
 
+        /* ANSWERS */
         .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
         .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: scale(1.01); }
         .btn-ans:disabled { opacity: 0.7; cursor: not-allowed; }
 
+        /* PIN & BADGE */
         .pin-display { font-size: 32px; font-weight: bold; color: var(--primary); letter-spacing: 5px; margin: 10px 0; }
         .badge-round { position: absolute; top: 10px; right: 10px; background: var(--accent); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; }
 
+        /* FOOTER (CHỈNH LẠI GIỐNG BẢN ĐẦU) */
         footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
+        .footer-info b { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -52,10 +58,10 @@
 <main class="container">
     <div id="role-selection" class="row justify-content-center py-5">
         <div class="col-md-6 card-custom text-center shadow">
-            <h3 class="fw-bold text-primary mb-4">HỆ THỐNG TRẮC NGHIỆM LIVE</h3>
+            <h3 class="fw-bold text-primary mb-4">HỆ THỐNG TRẮC NGHIỆM AI</h3>
             <div class="d-grid gap-3">
-                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">GIÁO VIÊN (HOST)</button>
-                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">THÍ SINH (USER)</button>
+                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">VAI TRÒ: GIÁO VIÊN (HOST)</button>
+                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">VAI TRÒ: THÍ SINH (USER)</button>
             </div>
         </div>
     </div>
@@ -65,27 +71,28 @@
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold"><i class="fa fa-cloud-upload-alt"></i> BƯỚC 1: TẢI ĐỀ THI (30+ CÂU)</h5>
+                        <h5 class="fw-bold"><i class="fa fa-file-excel"></i> UPLOAD FILE (TỐI THIỂU 30 CÂU)</h5>
+                        <p class="text-muted small">Mỗi lần thi gồm 3 vòng, mỗi vòng 10 câu.</p>
                         <input type="file" id="file-input" class="form-control my-3">
                         <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
 
                     <div id="host-lobby" class="hidden text-center">
-                        <h5 class="fw-bold">PHÒNG CHỜ TRỰC TUYẾN</h5>
+                        <h5 class="fw-bold">PHÒNG CHỜ VÀ DUYỆT USER</h5>
                         <div class="pin-display" id="display-pin">000000</div>
-                        <div id="qr-display" class="mb-3"></div>
+                        <div id="qr-display" class="my-3"></div>
                         <hr>
-                        <h6>DANH SÁCH CHỜ DUYỆT (<span id="wait-count">0</span>)</h6>
+                        <h6>ĐANG CHỜ (<span id="wait-count">0</span>)</h6>
                         <div id="waiting-list" class="text-start mb-3" style="max-height: 150px; overflow-y: auto;"></div>
                         <button class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
                     </div>
 
                     <div id="host-live-monitor" class="hidden text-center">
                         <div class="badge-round">Vòng <span id="monitor-round">1</span></div>
-                        <h4 class="text-primary fw-bold">ĐANG THI TRỰC TUYẾN</h4>
+                        <h4 class="text-primary fw-bold">THEO DÕI LIVE</h4>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
                         <h2 id="monitor-time">30</h2>
-                        <p id="monitor-q-text" class="fw-bold mt-3"></p>
+                        <p id="monitor-q-text" class="fw-bold mt-3 text-secondary"></p>
                     </div>
                 </div>
             </div>
@@ -100,10 +107,10 @@
 
     <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
         <div id="user-login" class="card-custom shadow">
-            <h4 class="text-center mb-4">THAM GIA PHÒNG THI</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center" placeholder="NHẬP MÃ PIN">
+            <h4 class="text-center mb-4">THÔNG TIN</h4>
+            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="NHẬP MÃ PIN">
             <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn...">
-            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">VÀO PHÒNG CHỜ</button>
+            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
         </div>
 
         <div id="user-waiting" class="hidden card-custom text-center py-5">
@@ -126,13 +133,13 @@
 
 <footer>
     <div class="footer-info">
-        Developer: <b>Lại Nguyễn Minh Trí</b> | <b>STUDYING BY AI 2026</b>
+        Developer: <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>84-908-08-3566</b><br>
+        <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
     </div>
 </footer>
 
 <script>
     const socket = io();
-    let myScore = 0;
     let timerInterval;
 
     function selectRole(role) {
@@ -140,7 +147,7 @@
         document.getElementById(role + '-ui').classList.remove('hidden');
     }
 
-    // --- LOGIC CHO HOST ---
+    // --- HOST LOGIC ---
     document.getElementById('file-input').onchange = function(e) {
         const file = e.target.files[0];
         const reader = new FileReader();
@@ -160,15 +167,14 @@
         const list = document.getElementById('waiting-list');
         const div = document.createElement('div');
         div.className = "d-flex justify-content-between align-items-center p-2 border-bottom";
-        div.innerHTML = `<span>${d.name}</span> <button class="btn btn-sm btn-success" onclick="approve('${d.sid}')">Duyệt</button>`;
+        div.innerHTML = `<span><i class="fa fa-user"></i> ${d.name}</span> <button class="btn btn-sm btn-success" onclick="approve('${d.sid}', this)">Duyệt</button>`;
         list.appendChild(div);
         document.getElementById('wait-count').innerText = list.children.length;
     });
 
-    function approve(sid) {
+    function approve(sid, btn) {
         socket.emit('host_approve_player', { sid });
-        // Xóa khỏi danh sách hiển thị
-        event.target.parentElement.remove();
+        btn.parentElement.remove();
         document.getElementById('wait-count').innerText = document.getElementById('waiting-list').children.length;
     }
 
@@ -178,7 +184,7 @@
         document.getElementById('host-live-monitor').classList.remove('hidden');
     }
 
-    // --- LOGIC CHO USER ---
+    // --- USER LOGIC ---
     function userJoin() {
         const pin = document.getElementById('user-pin').value;
         const name = document.getElementById('user-name').value;
@@ -190,16 +196,14 @@
 
     socket.on('player_approved', () => {
         document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT!";
-        document.getElementById('wait-status-text').classList.add('text-success');
+        document.getElementById('wait-status-text').className = "text-success fw-bold h4";
     });
 
-    // --- LOGIC CHUNG KHI THI (LIVE SYNC) ---
+    // --- GAME ENGINE (SYNC) ---
     socket.on('new_question', d => {
-        // Reset UI cho cả Host & User
         document.getElementById('user-waiting').classList.add('hidden');
         document.getElementById('user-quiz-area').classList.remove('hidden');
         
-        // Cập nhật nội dung câu hỏi
         document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
         document.getElementById('q-text').innerText = d.question.q;
         if(document.getElementById('monitor-q-text')) document.getElementById('monitor-q-text').innerText = d.question.q;
@@ -210,7 +214,7 @@
             const btn = document.createElement('button');
             btn.className = "btn btn-ans";
             btn.innerHTML = `<b>${o.toUpperCase()}.</b> ${d.question[o]}`;
-            btn.onclick = () => submitAns(o, d.question.ans);
+            btn.onclick = (e) => submitAns(o, d.question.ans, e);
             opts.appendChild(btn);
         });
 
@@ -220,15 +224,15 @@
     function startCountdown(seconds) {
         clearInterval(timerInterval);
         let timeLeft = seconds;
-        const barUser = document.getElementById('user-timer-bar');
-        const barHost = document.getElementById('host-timer-bar');
-        const textHost = document.getElementById('monitor-time');
+        const barU = document.getElementById('user-timer-bar');
+        const barH = document.getElementById('host-timer-bar');
+        const textH = document.getElementById('monitor-time');
 
-        function update() {
+        function tick() {
             const pct = (timeLeft / seconds) * 100;
-            if(barUser) barUser.style.width = pct + "%";
-            if(barHost) barHost.style.width = pct + "%";
-            if(textHost) textHost.innerText = timeLeft;
+            if(barU) barU.style.width = pct + "%";
+            if(barH) barH.style.width = pct + "%";
+            if(textH) textH.innerText = timeLeft;
 
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
@@ -236,24 +240,23 @@
             }
             timeLeft--;
         }
-        update();
-        timerInterval = setInterval(update, 1000);
+        tick();
+        timerInterval = setInterval(tick, 1000);
     }
 
-    function submitAns(choice, correctAns) {
+    function submitAns(choice, correctAns, e) {
         disableOptions();
         clearInterval(timerInterval);
         const correct = choice.toUpperCase() === correctAns.toUpperCase();
         socket.emit('submit_answer', { ans: choice });
         
-        // Phản hồi nhanh trên UI user
-        event.target.style.borderColor = correct ? "#2ecc71" : "#e74c3c";
-        event.target.style.background = correct ? "#eafaf1" : "#fdedec";
+        e.target.style.borderColor = correct ? "#2ecc71" : "#e74c3c";
+        e.target.style.background = correct ? "#eafaf1" : "#fdedec";
+        document.getElementById('u-score').innerText = `Đang cập nhật...`;
     }
 
     function disableOptions() {
-        const btns = document.querySelectorAll('.btn-ans');
-        btns.forEach(b => b.disabled = true);
+        document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
     }
 
     socket.on('update_leaderboard', list => {
@@ -264,15 +267,18 @@
             </div>
         `).join('');
         document.getElementById('lb-host').innerHTML = html;
+        // Cập nhật điểm riêng của user nếu có trong danh sách
+        const myName = document.getElementById('user-name').value;
+        const me = list.find(x => x.name === myName);
+        if(me) document.getElementById('u-score').innerText = `${me.score}đ`;
     });
 
     socket.on('round_ended', d => {
-        alert(`KẾT THÚC VÒNG ${d.round}! Vui lòng đợi Host bắt đầu vòng tiếp theo.`);
+        alert(`KẾT THÚC VÒNG ${d.round}!`);
         document.getElementById('user-quiz-area').classList.add('hidden');
         document.getElementById('user-waiting').classList.remove('hidden');
-        document.getElementById('wait-status-text').innerText = `KẾT THÚC VÒNG ${d.round}`;
+        document.getElementById('wait-status-text').innerText = `CHỜ VÒNG ${d.round + 1}`;
         
-        // Host UI
         document.getElementById('host-live-monitor').classList.add('hidden');
         document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('current-round-text').innerText = d.round + 1;
