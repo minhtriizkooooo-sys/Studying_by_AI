@@ -1,27 +1,34 @@
-import os, random, qrcode, io, base64, json, time
+import eventlet
+eventlet.monkey_patch()  # PHẢI ĐỂ ĐẦU TIÊN ĐỂ CHẠY TRÊN RENDER
+
+import os
+import random
+import qrcode
+import io
+import base64
+import json
+import time
 import pandas as pd
-import fitz  # PyMuPDF
-from docx import Document
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
-from threading import Timer
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026'
+# async_mode='eventlet' là bắt buộc khi dùng eventlet
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
-# # DB SESSION MOCKUP: Lưu trữ trạng thái phiên chơi
+# Lưu trữ trạng thái phiên chơi
 game_state = {
-    "all_questions": [],      # Kho 30+ câu hỏi từ file
-    "current_round_qs": [],   # 10 câu của vòng hiện tại
-    "used_q_indices": set(),  # Lưu chỉ số câu đã dùng để không trùng lặp
-    "players": {},            # {sid: {name, score, last_ans_time}}
+    "all_questions": [],      
+    "current_round_qs": [],   
+    "used_q_indices": set(),  
+    "players": {},            # {sid: {name, score, round_score, joined}}
     "is_started": False,
-    "current_round": 1,       # Vòng 1, 2, 3
-    "pin": None,              # Mã PIN ngẫu nhiên
+    "current_round": 1,       
+    "pin": None,              
     "room_id": "main_room",
-    "timer_value": 30,
-    "active_question_index": 0
+    "active_question_index": 0,
+    "start_time": 0
 }
 
 def generate_pin():
@@ -33,13 +40,12 @@ def generate_qr(data):
     img.save(buf, format='PNG')
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-# # LOGIC: Chọn 10 câu hỏi ngẫu nhiên không lặp lại từ kho câu hỏi
 def prepare_round_questions():
     available_indices = [i for i in range(len(game_state['all_questions'])) 
                          if i not in game_state['used_q_indices']]
     
     if len(available_indices) < 10:
-        return False # Không đủ câu hỏi
+        return False 
     
     selected_indices = random.sample(available_indices, 10)
     game_state['used_q_indices'].update(selected_indices)
@@ -52,25 +58,38 @@ def index():
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
-    # # Xử lý file tương tự như cũ nhưng lưu vào kho 'all_questions'
     filename = data['name']
-    content = base64.b64decode(data['content'].split(",")[1])
-    ext = filename.split('.')[-1].lower()
-    
     try:
-        if ext in ['csv', 'xlsx']:
-            df = pd.read_csv(io.BytesIO(content)) if ext == 'csv' else pd.read_excel(io.BytesIO(content))
-            # Cấu trúc: Câu hỏi, A, B, C, D, Đáp án, Độ khó
-            qs = [{"q": str(row[0]), "a": str(row[1]), "b": str(row[2]), "c": str(row[3]), "d": str(row[4]), "ans": str(row[5]).strip().upper()} for _, row in df.iterrows()]
-            game_state['all_questions'] = qs
+        content = base64.b64decode(data['content'].split(",")[1])
+        ext = filename.split('.')[-1].lower()
         
-        # # Tạo mã PIN và QR cố định cho phiên này
+        if ext == 'csv':
+            df = pd.read_csv(io.BytesIO(content))
+        else:
+            df = pd.read_excel(io.BytesIO(content))
+
+        # Ép kiểu dữ liệu để tránh lỗi JSON khi emit
+        qs = []
+        for _, row in df.iterrows():
+            qs.append({
+                "q": str(row.iloc[0]), 
+                "a": str(row.iloc[1]), 
+                "b": str(row.iloc[2]), 
+                "c": str(row.iloc[3]), 
+                "d": str(row.iloc[4]), 
+                "ans": str(row.iloc[5]).strip().upper()
+            })
+        
+        game_state['all_questions'] = qs
         game_state['pin'] = generate_pin()
+        
+        # Tạo link QR (sử dụng host thực tế)
         qr_data = f"{request.host_url}?pin={game_state['pin']}"
         qr_code = generate_qr(qr_data)
         
         emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, broadcast=True)
     except Exception as e:
+        print(f"Error: {e}")
         emit('error', {'msg': f"Lỗi xử lý file: {str(e)}"})
 
 @socketio.on('join_game')
@@ -81,10 +100,9 @@ def join_game(data):
             "name": data['name'], 
             "score": 0, 
             "round_score": 0,
-            "joined": False # Chờ host duyệt
+            "joined": False 
         }
         join_room(game_state['room_id'])
-        # Thông báo cho Host có người đang chờ duyệt
         emit('player_waiting', {'name': data['name'], 'sid': request.sid}, broadcast=True)
     else:
         emit('error', {'msg': "Mã PIN không đúng!"})
@@ -101,15 +119,19 @@ def start_round():
     if prepare_round_questions():
         game_state['is_started'] = True
         game_state['active_question_index'] = 0
-        send_next_question()
+        send_question_logic()
     else:
-        emit('error', {'msg': "Không đủ câu hỏi trong kho để tiếp tục vòng tiếp theo!"})
+        emit('error', {'msg': "Không đủ câu hỏi (Cần 10 câu mỗi vòng)!"})
 
-def send_next_question():
+@socketio.on('next_question')
+def handle_next():
+    game_state['active_question_index'] += 1
+    send_question_logic()
+
+def send_question_logic():
     idx = game_state['active_question_index']
     if idx < 10:
         q = game_state['current_round_qs'][idx]
-        # # LOGIC: Đồng bộ thời gian 30s cho tất cả User
         payload = {
             'question': q,
             'index': idx + 1,
@@ -117,38 +139,36 @@ def send_next_question():
             'timer': 30,
             'round': game_state['current_round']
         }
+        game_state['start_time'] = time.time()
         emit('new_question', payload, room=game_state['room_id'])
-        game_state['start_time'] = time.time() # Lưu mốc thời gian để tính tốc độ
-        
-        # Sau 30s tự động chuyển câu hoặc kết thúc
-        # (Trong thực tế nên dùng Background Task của Eventlet)
     else:
-        # Kết thúc vòng
         emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
         game_state['current_round'] += 1
 
 @socketio.on('submit_answer')
 def handle_ans(data):
     sid = request.sid
-    if sid in game_state['players']:
-        current_q = game_state['current_round_qs'][game_state['active_question_index']]
-        is_correct = data.get('ans').upper() == current_q['ans'].upper()
+    if sid in game_state['players'] and game_state['is_started']:
+        idx = game_state['active_question_index']
+        current_q = game_state['current_round_qs'][idx]
+        
+        user_ans = str(data.get('ans')).upper()
+        is_correct = user_ans == current_q['ans']
         
         if is_correct:
-            # # LOGIC: Tính điểm nhanh (Cơ bản 100đ + thưởng thời gian còn lại)
             elapsed = time.time() - game_state['start_time']
-            time_bonus = max(0, int(30 - elapsed)) 
-            points = 100 + time_bonus
+            points = 100 + max(0, int(30 - elapsed))
             game_state['players'][sid]['score'] += points
             game_state['players'][sid]['round_score'] += points
         
         update_lb()
 
 def update_lb():
-    # # Xếp hạng live theo tổng điểm
     lb = sorted([{"name": v['name'], "score": v['score']} for v in game_state['players'].values()], 
                 key=lambda x: x['score'], reverse=True)
     emit('update_leaderboard', lb, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # Render yêu cầu dùng biến môi trường PORT
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
