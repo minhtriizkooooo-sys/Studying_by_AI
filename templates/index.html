@@ -8,7 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; }
+        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; --success: #2ecc71; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
 
@@ -36,17 +36,21 @@
         .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: scale(1.01); }
         .btn-ans:disabled { opacity: 0.7; cursor: not-allowed; }
 
-        /* MONITOR DISPLAY (TO RÕ) */
+        /* MONITOR DISPLAY */
         #monitor-q-text { font-size: 28px; font-weight: bold; color: var(--primary-dark); margin-bottom: 20px; line-height: 1.4; }
         .monitor-opt-card { background: #fff; border: 2px solid #ddd; padding: 15px; border-radius: 12px; font-size: 20px; margin-bottom: 10px; }
+
+        /* REVIEW STYLES */
+        .review-item { border-left: 5px solid #ddd; padding-left: 15px; margin-bottom: 20px; }
+        .review-item.correct { border-left-color: var(--success); background: #f0fff4; }
+        .review-item.wrong { border-left-color: var(--danger); background: #fff5f5; }
+        .stat-badge { font-size: 12px; padding: 4px 8px; border-radius: 4px; margin-right: 5px; }
 
         /* PIN & BADGE */
         .pin-display { font-size: 32px; font-weight: bold; color: var(--primary); letter-spacing: 5px; margin: 10px 0; }
         .badge-round { background: var(--accent); color: white; padding: 5px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 
-        /* FOOTER */
         footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
-        .footer-info b { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -75,14 +79,13 @@
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold"><i class="fa fa-file-excel text-success"></i> UPLOAD FILE (TỐI THIỂU 30 CÂU)</h5>
-                        <p class="text-muted mb-3">Template Excel: Cột 1: Câu hỏi | Cột 2: Đáp án A | ... | Cột 6: Đáp án đúng | Cột 7: Giải thích</p>
+                        <h5 class="fw-bold"><i class="fa fa-file-excel text-success"></i> UPLOAD FILE CÂU HỎI</h5>
                         <input type="file" id="file-input" class="form-control my-3">
                         <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
 
                     <div id="host-lobby" class="hidden text-center">
-                        <h5 class="fw-bold">PHÒNG CHỜ VÀ DUYỆT USER</h5>
+                        <h5 class="fw-bold">PHÒNG CHỜ</h5>
                         <div class="pin-display" id="display-pin">000000</div>
                         <div id="qr-display" class="my-3"></div>
                         <hr>
@@ -90,7 +93,7 @@
                             <h6>ĐANG CHỜ (<span id="wait-count">0</span>)</h6>
                             <button class="btn btn-sm btn-warning fw-bold" onclick="approveAll()">DUYỆT TẤT CẢ</button>
                         </div>
-                        <div id="waiting-list" class="text-start mb-3" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;"></div>
+                        <div id="waiting-list" class="text-start mb-3" style="max-height: 200px; overflow-y: auto;"></div>
                         <button class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
                     </div>
 
@@ -100,9 +103,14 @@
                             <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
                         </div>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <div id="monitor-q-text">Đang tải câu hỏi...</div>
+                        <div id="monitor-q-text">Đang tải...</div>
                         <div id="monitor-options" class="row g-2"></div>
-                        <div id="host-review" class="hidden mt-4 pt-3 border-top"></div>
+                    </div>
+                    
+                    <div id="host-review-screen" class="hidden">
+                        <h4 class="fw-bold text-primary mb-3">TỔNG KẾT VÒNG CHƠI</h4>
+                        <div id="host-review-list"></div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="backToLobby()">TIẾP TỤC VÒNG MỚI</button>
                     </div>
                 </div>
             </div>
@@ -118,15 +126,14 @@
     <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
         <div id="user-login" class="card-custom shadow">
             <h4 class="text-center mb-4 fw-bold">THÔNG TIN THAM GIA</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="NHẬP MÃ PIN">
+            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="MÃ PIN">
             <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn...">
             <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
         </div>
 
         <div id="user-waiting" class="hidden card-custom text-center py-5">
             <div class="spinner-grow text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold">ĐÃ GỬI YÊU CẦU</h4>
-            <p>Vui lòng đợi Giáo viên duyệt vào phòng...</p>
+            <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
         </div>
 
         <div id="user-quiz-area" class="hidden card-custom">
@@ -139,10 +146,12 @@
             <h5 id="q-text" class="fw-bold mb-4"></h5>
             <div id="q-options"></div>
         </div>
-        
-        <div id="user-review" class="hidden card-custom mt-3">
-            <h5 class="fw-bold text-primary border-bottom pb-2"><i class="fa fa-book-open"></i> GIẢI THÍCH CHI TIẾT</h5>
-            <div id="review-content"></div>
+
+        <div id="user-review-screen" class="hidden">
+            <div class="card-custom">
+                <h4 class="fw-bold text-center text-success mb-3">KẾT QUẢ CỦA BẠN</h4>
+                <div id="user-review-list"></div>
+            </div>
         </div>
     </div>
 </main>
@@ -157,11 +166,6 @@
 <script>
     const socket = io();
     let timerInterval;
-    
-    // Tự động nhận diện vai trò nếu cần (tùy chọn)
-    socket.on('connect', () => {
-        console.log("Connected with ID:", socket.id);
-    });
 
     function selectRole(role) {
         document.getElementById('role-selection').classList.add('hidden');
@@ -169,7 +173,7 @@
         if(role === 'host') socket.emit('host_connect');
     }
 
-    // --- HOST LOGIC ---
+    // HOST ACTIONS
     document.getElementById('file-input').onchange = function(e) {
         const file = e.target.files[0];
         if(!file) return;
@@ -188,19 +192,18 @@
 
     socket.on('player_waiting', d => {
         const list = document.getElementById('waiting-list');
+        if(document.getElementById("wait-" + d.sid)) return;
         const div = document.createElement('div');
         div.id = "wait-" + d.sid;
-        div.className = "d-flex justify-content-between align-items-center p-2 border-bottom bg-light";
-        div.innerHTML = `<span><i class="fa fa-user text-primary me-2"></i><b>${d.name}</b></span> 
-                         <button class="btn btn-sm btn-success" onclick="approve('${d.sid}')">Duyệt</button>`;
+        div.className = "d-flex justify-content-between align-items-center p-2 border-bottom bg-light mb-1 rounded";
+        div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success" onclick="approve('${d.sid}')">Duyệt</button>`;
         list.appendChild(div);
         document.getElementById('wait-count').innerText = list.children.length;
     });
 
     function approve(sid) {
         socket.emit('host_approve_player', { sid });
-        const el = document.getElementById("wait-" + sid);
-        if(el) el.remove();
+        document.getElementById("wait-" + sid)?.remove();
         document.getElementById('wait-count').innerText = document.getElementById('waiting-list').children.length;
     }
 
@@ -213,53 +216,58 @@
     function startRound() {
         socket.emit('start_round');
         document.getElementById('host-lobby').classList.add('hidden');
+        document.getElementById('host-review-screen').classList.add('hidden');
         document.getElementById('host-live-monitor').classList.remove('hidden');
-        document.getElementById('host-review').classList.add('hidden');
     }
 
-    // --- USER LOGIC ---
+    function backToLobby() {
+        document.getElementById('host-review-screen').classList.add('hidden');
+        document.getElementById('host-lobby').classList.remove('hidden');
+    }
+
+    // USER ACTIONS
     function userJoin() {
         const pin = document.getElementById('user-pin').value;
         const name = document.getElementById('user-name').value;
-        if(!pin || !name) return alert("Vui lòng nhập đủ PIN và Tên!");
+        if(!pin || !name) return alert("Thiếu PIN hoặc Tên!");
         socket.emit('join_game', { pin, name });
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-waiting').classList.remove('hidden');
     }
 
     socket.on('player_approved', () => {
-        document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT!";
-        document.getElementById('wait-status-text').className = "text-success fw-bold h4";
+        document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT! CHỜ GIÁO VIÊN BẮT ĐẦU...";
+        document.getElementById('wait-status-text').classList.add('text-success');
     });
 
-    // --- GAME ENGINE ---
+    // GAME ENGINE
     socket.on('new_question', d => {
-        // Reset Review UI
-        document.getElementById('user-review').classList.add('hidden');
-        document.getElementById('host-review').classList.add('hidden');
-
-        // Host Monitor
-        document.getElementById('monitor-round').innerText = d.round;
-        document.getElementById('monitor-q-text').innerText = d.question.q;
-        const monOpts = document.getElementById('monitor-options');
-        monOpts.innerHTML = ['a','b','c','d'].map(o => `
-            <div class="col-6">
-                <div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div>
-            </div>`).join('');
-
-        // User UI
+        // Reset screens
+        document.getElementById('user-review-screen').classList.add('hidden');
         document.getElementById('user-waiting').classList.add('hidden');
         document.getElementById('user-quiz-area').classList.remove('hidden');
+
+        // Monitor
+        document.getElementById('monitor-round').innerText = d.round;
+        document.getElementById('monitor-q-text').innerText = d.question.q;
+        document.getElementById('monitor-options').innerHTML = ['a','b','c','d'].map(o => `
+            <div class="col-6"><div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
+
+        // User
         document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
         document.getElementById('q-text').innerText = d.question.q;
-
         const opts = document.getElementById('q-options');
         opts.innerHTML = '';
         ['a','b','c','d'].forEach(o => {
             const btn = document.createElement('button');
             btn.className = "btn btn-ans shadow-sm";
             btn.innerHTML = `<b>${o.toUpperCase()}.</b> ${d.question[o]}`;
-            btn.onclick = (e) => submitAns(o, d.question.ans, e);
+            btn.onclick = (e) => {
+                disableOptions();
+                socket.emit('submit_answer', { ans: o });
+                e.target.style.borderColor = "var(--primary)";
+                e.target.style.background = "#eef6ff";
+            };
             opts.appendChild(btn);
         });
 
@@ -271,79 +279,71 @@
         let timeLeft = seconds;
         function tick() {
             const pct = (timeLeft / seconds) * 100;
-            if(document.getElementById('user-timer-bar')) document.getElementById('user-timer-bar').style.width = pct + "%";
-            if(document.getElementById('host-timer-bar')) document.getElementById('host-timer-bar').style.width = pct + "%";
-            if(document.getElementById('monitor-time')) document.getElementById('monitor-time').innerText = timeLeft;
-            
-            if(timeLeft <= 0) { 
-                clearInterval(timerInterval); 
-                disableOptions(); 
-            }
+            document.getElementById('user-timer-bar').style.width = pct + "%";
+            document.getElementById('host-timer-bar').style.width = pct + "%";
+            document.getElementById('monitor-time').innerText = timeLeft;
+            if(timeLeft <= 0) { clearInterval(timerInterval); disableOptions(); }
             timeLeft--;
         }
         tick();
         timerInterval = setInterval(tick, 1000);
     }
 
-    function submitAns(choice, correctAns, e) {
-        disableOptions();
-        clearInterval(timerInterval);
-        socket.emit('submit_answer', { ans: choice });
-        
-        const correct = choice.toUpperCase() === correctAns.toUpperCase();
-        e.target.style.borderColor = correct ? "#2ecc71" : "#e74c3c";
-        e.target.style.background = correct ? "#eafaf1" : "#fdedec";
-        e.target.innerHTML += correct ? ' <i class="fa fa-check-circle float-end"></i>' : ' <i class="fa fa-times-circle float-end"></i>';
-    }
-
     function disableOptions() {
         document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
     }
 
-    socket.on('bonus_points', d => {
-        // Có thể thay alert bằng một toast nhẹ nhàng hơn
-        console.log("Bonus points received:", d.bonus);
-    });
-
+    // LEADERBOARD & SCORES
     socket.on('update_leaderboard', list => {
-        const html = list.map((p, i) => `
-            <div class="d-flex justify-content-between align-items-center p-2 border-bottom ${i < 3 ? 'bg-light fw-bold text-primary' : ''}">
-                <span>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)} ${p.name}</span>
-                <span class="badge bg-primary rounded-pill">${p.score}đ</span>
+        document.getElementById('lb-host').innerHTML = list.map((p, i) => `
+            <div class="d-flex justify-content-between align-items-center p-2 border-bottom ${i < 3 ? 'bg-light fw-bold' : ''}">
+                <span>${i==0?'🥇':i==1?'🥈':i==2?'🥉':'#'+(i+1)} ${p.name}</span>
+                <span class="badge bg-primary">${p.score}đ</span>
             </div>`).join('');
-        document.getElementById('lb-host').innerHTML = html;
     });
 
     socket.on('personal_score', d => {
-        document.getElementById('u-score').innerText = `${d.score}đ`;
-        document.getElementById('u-rank').innerText = d.rank > 0 ? `#${d.rank}` : "";
+        document.getElementById('u-score').innerText = d.score + "đ";
+        document.getElementById('u-rank').innerText = d.rank ? "#" + d.rank : "";
+    });
+
+    // REVIEW LOGIC
+    socket.on('round_review', d => {
+        document.getElementById('host-live-monitor').classList.add('hidden');
+        document.getElementById('host-review-screen').classList.remove('hidden');
+        
+        document.getElementById('host-review-list').innerHTML = d.questions.map((q, i) => `
+            <div class="card p-3 mb-2 shadow-sm">
+                <p class="fw-bold mb-1">${i+1}. ${q.q}</p>
+                <div class="mb-2">
+                    <span class="stat-badge bg-primary">A: ${q.stats.A}</span>
+                    <span class="stat-badge bg-primary">B: ${q.stats.B}</span>
+                    <span class="stat-badge bg-primary">C: ${q.stats.C}</span>
+                    <span class="stat-badge bg-primary">D: ${q.stats.D}</span>
+                </div>
+                <p class="text-success small mb-1"><b>Đáp án:</b> ${q.ans}</p>
+                <p class="text-muted small italic"><b>Giải thích:</b> ${q.exp}</p>
+            </div>`).join('');
+    });
+
+    socket.on('personal_review', d => {
+        document.getElementById('user-quiz-area').classList.add('hidden');
+        document.getElementById('user-review-screen').classList.remove('hidden');
+        
+        document.getElementById('user-review-list').innerHTML = d.history.map((h, i) => {
+            const isCorrect = h.your_ans === h.correct_ans;
+            return `
+            <div class="review-item ${isCorrect ? 'correct' : 'wrong'} rounded p-2 mb-3 shadow-sm">
+                <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
+                <p class="small mb-1">Bạn chọn: <b class="${isCorrect?'text-success':'text-danger'}">${h.your_ans || 'Bỏ trống'}</b></p>
+                <p class="small mb-1">Đáp án đúng: <b class="text-success">${h.correct_ans}</b></p>
+                <p class="text-muted extra-small"><i>${h.exp}</i></p>
+            </div>`;
+        }).join('');
     });
 
     socket.on('round_ended', d => {
-        document.getElementById('user-quiz-area').classList.add('hidden');
-        document.getElementById('user-waiting').classList.remove('hidden');
-        document.getElementById('wait-status-text').innerText = `VÒNG ${d.round} KẾT THÚC!`;
-        
-        document.getElementById('host-live-monitor').classList.add('hidden');
-        document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('current-round-text').innerText = d.round + 1;
-    });
-
-    socket.on('round_review', d => {
-        const reviewHtml = d.questions.map((q, i) => `
-            <div class="mb-3 p-3 border rounded bg-white shadow-sm">
-                <p class="fw-bold text-dark">Câu ${i+1}: ${q.q}</p>
-                <p class="mb-1 text-success"><b>Đáp án đúng:</b> ${q.ans}</p>
-                <p class="mb-0 text-muted small"><b>Giải thích:</b> ${q.exp}</p>
-            </div>`).join('');
-        
-        // Cập nhật cho cả Host và User
-        document.getElementById('host-review').innerHTML = "<h5>TỔNG KẾT ĐÁP ÁN</h5>" + reviewHtml;
-        document.getElementById('host-review').classList.remove('hidden');
-        document.getElementById('host-live-monitor').classList.remove('hidden'); // Để host xem review
-
-        document.getElementById('user-review').classList.remove('hidden');
-        document.getElementById('review-content').innerHTML = reviewHtml;
     });
 
     socket.on('error', d => alert(d.msg));
