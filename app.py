@@ -15,7 +15,7 @@ from flask_socketio import SocketIO, emit, join_room
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026_full_version'
 # async_mode='eventlet' là bắt buộc khi dùng eventlet để xử lý real-time
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # ==========================================================
 # TRẠNG THÁI HỆ THỐNG (GAME STATE)
@@ -285,4 +285,5 @@ def handle_ans(data):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port)
+
 
