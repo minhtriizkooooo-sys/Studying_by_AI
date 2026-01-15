@@ -1,4 +1,4 @@
-oper<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -25,12 +25,22 @@ oper<!DOCTYPE html>
         /* Header */
         header { 
             background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
-            color: white; padding: 0 20px; height: 65px; 
+            color: white; padding: 0 20px; height: 70px; 
             display: flex; justify-content: space-between; align-items: center; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 1000;
         }
-        .logo { display: flex; align-items: center; gap: 12px; font-weight: bold; font-size: 18px; }
-        .logo img { height: 45px; width: auto; border-radius: 5px; background: white; padding: 2px; }
+        .logo { display: flex; align-items: center; gap: 15px; font-weight: bold; font-size: 20px; }
+        
+        /* LOGO ĐÃ CHỈNH SỬA: KHÔNG VIỀN, KHÔNG NỀN */
+        .logo img { 
+            height: 55px; 
+            width: auto; 
+            background: transparent; 
+            border: none; 
+            padding: 0; 
+            border-radius: 0;
+            object-fit: contain;
+        }
 
         /* Layout & Cards */
         main { flex: 1; padding: 20px 10px; }
@@ -67,8 +77,6 @@ oper<!DOCTYPE html>
         /* Footer */
         footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; border-top: 3px solid var(--accent); }
         .pin-code { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: 4px; }
-        
-        /* Màu cam cho tên và hotline */
         .footer-highlight { color: var(--accent); font-weight: bold; }
     </style>
 </head>
@@ -199,7 +207,6 @@ oper<!DOCTYPE html>
 </footer>
 
 <script>
-    // Khởi tạo Socket.IO với các thông số tối ưu cho môi trường Production (Render/Gevent)
     const socket = io({
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -221,7 +228,7 @@ oper<!DOCTYPE html>
         if(!file) return;
         const reader = new FileReader();
         document.getElementById('host-status').classList.remove('hidden');
-        reader.onload = () => socket.emit('host_upload_file', { content: reader.result });
+        reader.onload = () => socket.emit('host_upload_file', { content: reader.result, name: file.name });
         reader.readAsDataURL(file);
     };
 
@@ -287,12 +294,10 @@ oper<!DOCTYPE html>
 
     // ================== GAME ENGINE ==================
     socket.on('new_question', d => {
-        // Chuyển màn hình cho User
         document.getElementById('user-review-screen').classList.add('hidden');
         document.getElementById('user-waiting').classList.add('hidden');
         document.getElementById('user-quiz-area').classList.remove('hidden');
 
-        // Monitor của Host
         const mRound = document.getElementById('monitor-round');
         if(mRound) mRound.innerText = d.round;
         const mQ = document.getElementById('monitor-q-text');
@@ -303,7 +308,6 @@ oper<!DOCTYPE html>
                 <div class="col-6"><div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
         }
 
-        // Quiz Area của User
         document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
         document.getElementById('q-text').innerText = d.question.q;
         const opts = document.getElementById('q-options');
