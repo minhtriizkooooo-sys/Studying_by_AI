@@ -14,7 +14,7 @@ from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026_full_version'
-# async_mode='eventlet' là bắt buộc khi dùng eventlet để xử lý real-time
+# async_mode='gevent' là bắt buộc để chạy trên môi trường Render với gevent
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # ==========================================================
@@ -82,7 +82,7 @@ def process_bonus_and_next():
                 emit('bonus_points', {'bonus': bonus}, room=sid)
     
     update_lb()
-    socketio.sleep(5) 
+    socketio.sleep(4) # Tăng thời gian chờ để thí sinh xem bảng xếp hạng tạm thời
     
     game_state['active_question_index'] += 1
     send_question_logic()
@@ -93,7 +93,7 @@ def send_question_logic():
     
     if idx < 10:
         q = game_state['current_round_qs'][idx]
-        # Tạo bản sao câu hỏi không chứa đáp án để gửi cho User
+        # Gửi dữ liệu không kèm đáp án cho User
         q_to_send = {
             'q': q['q'], 'a': q['a'], 'b': q['b'], 'c': q['c'], 'd': q['d']
         }
@@ -115,8 +115,7 @@ def send_question_logic():
         game_state['question_timer'] = socketio.call_later(game_state['max_time_per_question'], auto_next_question)
     
     else:
-        # --- BỔ SUNG LOGIC REVIEW TẠI ĐÂY ---
-        # 1. Gửi cho Host thống kê đáp án (để hiện lên màn hình chính)
+        # Hết 10 câu -> Tổng kết vòng đấu
         review_for_host = []
         for i, q in enumerate(game_state['current_round_qs']):
             stats = {'A': 0, 'B': 0, 'C': 0, 'D': 0}
@@ -128,9 +127,8 @@ def send_question_logic():
                 'q': q['q'], 'ans': q['ans'], 'exp': q.get('exp', ''), 'stats': stats
             })
 
-        # 2. Gửi cho mỗi User lịch sử cá nhân của họ
         for sid, player in game_state['players'].items():
-            if not player['joined']: continue
+            if not player.get('joined'): continue
             personal_review = []
             for i, q in enumerate(game_state['current_round_qs']):
                 personal_review.append({
@@ -148,9 +146,8 @@ def send_question_logic():
         game_state['is_started'] = False
 
 def update_lb():
-    """Cập nhật Leaderboard toàn cục và thứ hạng cá nhân"""
-    joined_players = {sid: p for sid, p in game_state['players'].items() if p['joined']}
-    
+    """Cập nhật bảng xếp hạng"""
+    joined_players = {sid: p for sid, p in game_state['players'].items() if p.get('joined')}
     lb = sorted([{"name": v['name'], "score": v['score']} for v in joined_players.values()], 
                 key=lambda x: x['score'], reverse=True)
     
@@ -162,7 +159,7 @@ def update_lb():
         emit('personal_score', {'score': player['score'], 'rank': rank}, room=sid)
 
 # ==========================================================
-# CÁC SỰ KIỆN SOCKET.IO (SOCKET EVENTS)
+# CÁC SỰ KIỆN SOCKET.IO
 # ==========================================================
 
 @app.route('/')
@@ -176,18 +173,23 @@ def host_connect():
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
-    filename = data['name']
     try:
-        content = base64.b64decode(data['content'].split(",")[1])
-        ext = filename.split('.')[-1].lower()
+        content_type, content_string = data['content'].split(',')
+        decoded = base64.b64decode(content_string)
+        filename = data['name'].lower()
         
-        if ext == 'csv':
-            df = pd.read_csv(io.BytesIO(content))
+        if filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(decoded))
         else:
-            df = pd.read_excel(io.BytesIO(content))
+            df = pd.read_excel(io.BytesIO(decoded), engine='openpyxl')
+
+        # Bỏ qua dòng tiêu đề nếu cần
+        if "câu" in str(df.iloc[0,0]).lower() or "question" in str(df.iloc[0,0]).lower():
+            df = df.iloc[1:]
 
         qs = []
         for _, row in df.iterrows():
+            if pd.isna(row.iloc[0]): continue
             qs.append({
                 "q": str(row.iloc[0]), 
                 "a": str(row.iloc[1]), 
@@ -201,28 +203,26 @@ def handle_upload(data):
         game_state['all_questions'] = qs
         game_state['pin'] = generate_pin()
         
+        # Tạo URL mời bằng tên miền thực tế
         qr_data = f"{request.host_url}?pin={game_state['pin']}"
         qr_code = generate_qr(qr_data)
         
-        emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, broadcast=True)
+        emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, room=game_state['host_sid'])
     except Exception as e:
         emit('error', {'msg': f"Lỗi xử lý file: {str(e)}"})
 
 @socketio.on('join_game')
 def join_game(data):
-    user_pin = data.get('pin')
+    user_pin = str(data.get('pin'))
     if user_pin == game_state['pin']:
         game_state['players'][request.sid] = {
-            "name": data['name'], 
-            "score": 0, 
-            "round_score": 0,
-            "joined": False,
-            "answers": {} # THÊM: Lưu đáp án đã chọn
+            "name": data['name'], "score": 0, "round_score": 0,
+            "joined": False, "answers": {}
         }
         join_room(game_state['room_id'])
         emit('player_waiting', {'name': data['name'], 'sid': request.sid}, room=game_state['host_sid'])
     else:
-        emit('error', {'msg': "Mã PIN không đúng, vui lòng kiểm tra lại!"})
+        emit('error', {'msg': "Mã PIN không đúng!"})
 
 @socketio.on('host_approve_player')
 def approve_player(data):
@@ -233,22 +233,20 @@ def approve_player(data):
 
 @socketio.on('host_approve_all')
 def approve_all():
-    for sid, p_info in game_state['players'].items():
-        if not p_info['joined']:
-            game_state['players'][sid]['joined'] = True
-            emit('player_approved', {'status': 'ready'}, room=sid)
+    for sid in game_state['players']:
+        game_state['players'][sid]['joined'] = True
+        emit('player_approved', {'status': 'ready'}, room=sid)
 
 @socketio.on('start_round')
 def start_round():
     if prepare_round_questions():
         game_state['is_started'] = True
         game_state['active_question_index'] = 0
-        # Reset lịch sử đáp án cho vòng mới
         for p in game_state['players'].values():
             p['answers'] = {}
         send_question_logic()
     else:
-        emit('error', {'msg': "Không đủ 10 câu hỏi mới để bắt đầu vòng này!"})
+        emit('error', {'msg': "Không đủ 10 câu hỏi chưa sử dụng để bắt đầu!"})
 
 @socketio.on('submit_answer')
 def handle_ans(data):
@@ -258,12 +256,10 @@ def handle_ans(data):
         
         idx = game_state['active_question_index']
         user_ans = str(data.get('ans')).upper()
-        
-        # THÊM: Lưu đáp án User đã chọn vào history
         game_state['players'][sid]['answers'][idx] = user_ans
         
         current_q = game_state['current_round_qs'][idx]
-        is_correct = user_ans == current_q['ans']
+        is_correct = (user_ans == current_q['ans'])
         
         elapsed = time.time() - game_state['start_time']
         game_state['answered_players'].add(sid)
@@ -271,12 +267,11 @@ def handle_ans(data):
         if is_correct:
             points = 100 + max(0, int(game_state['max_time_per_question'] - elapsed))
             game_state['players'][sid]['score'] += points
-            game_state['players'][sid]['round_score'] += points
             game_state['correct_responses'][sid] = elapsed
         
         update_lb()
         
-        active_p_count = len([s for s, p in game_state['players'].items() if p['joined']])
+        active_p_count = len([s for s, p in game_state['players'].items() if p.get('joined')])
         if len(game_state['answered_players']) >= active_p_count:
             if game_state['question_timer']:
                 game_state['question_timer'].cancel()
@@ -285,5 +280,3 @@ def handle_ans(data):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port)
-
-
