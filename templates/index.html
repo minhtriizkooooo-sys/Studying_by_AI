@@ -76,6 +76,7 @@
                 <div class="card-custom">
                     <div id="host-setup">
                         <h5 class="fw-bold"><i class="fa fa-file-excel text-success"></i> UPLOAD FILE (TỐI THIỂU 30 CÂU)</h5>
+                        <p class="text-muted mb-3">Template Excel: Cột 1: Câu hỏi | Cột 2: Đáp án A | Cột 3: B | Cột 4: C | Cột 5: D | Cột 6: Đáp án đúng (A/B/C/D) | Cột 7: Giải thích</p>
                         <input type="file" id="file-input" class="form-control my-3">
                         <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
@@ -93,14 +94,12 @@
                     <div id="host-live-monitor" class="hidden">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="badge-round">Vòng <span id="monitor-round">1</span></span>
-                            <h2 id="monitor-time" class="text-danger fw-bold m-0">30</h2>
+                            <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
                         </div>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
                         <div id="monitor-q-text">Đang tải câu hỏi...</div>
                         <div id="monitor-options" class="row g-2"></div>
-                        <div class="text-center mt-4">
-                            <button class="btn btn-success btn-lg px-5 fw-bold" onclick="socket.emit('next_question')">CÂU TIẾP THEO <i class="fa fa-arrow-right"></i></button>
-                        </div>
+                        <div id="host-review" class="hidden mt-4"></div>
                     </div>
                 </div>
             </div>
@@ -132,9 +131,15 @@
             <div class="d-flex justify-content-between mb-2">
                 <span id="q-idx" class="badge bg-primary">Câu 1/10</span>
                 <span id="u-score" class="fw-bold text-success">0đ</span>
+                <span id="u-rank" class="fw-bold text-info"></span>
             </div>
             <h5 id="q-text" class="fw-bold mb-4"></h5>
             <div id="q-options"></div>
+        </div>
+        
+        <div id="user-review" class="hidden card-custom mt-3">
+            <h5 class="fw-bold">REVIEW VÒNG</h5>
+            <div id="review-content"></div>
         </div>
     </div>
 </main>
@@ -149,6 +154,12 @@
 <script>
     const socket = io();
     let timerInterval;
+    
+    socket.on('connect', () => {
+        if (window.location.pathname.includes('host')) {  // Giả sử host có path riêng, hoặc chỉnh thủ công
+            socket.emit('host_connect');
+        }
+    });
 
     function selectRole(role) {
         document.getElementById('role-selection').classList.add('hidden');
@@ -231,7 +242,7 @@
             opts.appendChild(btn);
         });
 
-        startCountdown(30);
+        startCountdown(d.timer);
     });
 
     function startCountdown(seconds) {
@@ -262,6 +273,10 @@
         document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
     }
 
+    socket.on('bonus_points', d => {
+        alert(`Bạn nhận thêm ${d.bonus} điểm bonus!`);
+    });
+
     socket.on('update_leaderboard', list => {
         const html = list.map((p, i) => `
             <div class="d-flex justify-content-between p-2 border-bottom ${i<3?'fw-bold text-primary':''}">
@@ -269,9 +284,11 @@
                 <span>${p.score}đ</span>
             </div>`).join('');
         document.getElementById('lb-host').innerHTML = html;
-        const myName = document.getElementById('user-name').value;
-        const me = list.find(x => x.name === myName);
-        if(me) document.getElementById('u-score').innerText = `${me.score}đ`;
+    });
+
+    socket.on('personal_score', d => {
+        document.getElementById('u-score').innerText = `${d.score}đ`;
+        document.getElementById('u-rank').innerText = `#${d.rank}`;
     });
 
     socket.on('round_ended', d => {
@@ -281,6 +298,23 @@
         document.getElementById('host-live-monitor').classList.add('hidden');
         document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('current-round-text').innerText = d.round + 1;
+    });
+
+    socket.on('round_review', d => {
+        const reviewHtml = d.questions.map(q => `
+            <div class="mb-3">
+                <b>Câu: ${q.q}</b><br>
+                Đáp án: ${q.ans}<br>
+                Giải thích: ${q.exp}
+            </div>`).join('<hr>');
+        
+        // Host review
+        document.getElementById('host-review').innerHTML = reviewHtml;
+        document.getElementById('host-review').classList.remove('hidden');
+        
+        // User review
+        document.getElementById('user-review').classList.remove('hidden');
+        document.getElementById('review-content').innerHTML = reviewHtml;
     });
 
     socket.on('error', d => alert(d.msg));
