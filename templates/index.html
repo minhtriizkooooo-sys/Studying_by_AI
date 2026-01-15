@@ -4,53 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>STUDYING BY AI 2026</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <style>
-        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; --success: #2ecc71; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-        /* HEADER */
+    <style>
+        :root { 
+            --primary: #0066cc; 
+            --primary-dark: #004a7c; 
+            --bg: #f4f7f9; 
+            --accent: #f39c12; 
+            --danger: #e74c3c; 
+            --success: #2ecc71; 
+        }
+        
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* Header */
         header { 
             background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
-            color: white; padding: 0 15px; height: 60px; 
+            color: white; padding: 0 20px; height: 65px; 
             display: flex; justify-content: space-between; align-items: center; 
-            z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 1000;
         }
-        .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
-        .logo img { height: 48px; width: auto; object-fit: contain; }
+        .logo { display: flex; align-items: center; gap: 12px; font-weight: bold; font-size: 18px; }
+        .logo img { height: 45px; width: auto; border-radius: 5px; background: white; padding: 2px; }
 
-        /* MAIN & CARDS */
+        /* Layout & Cards */
         main { flex: 1; padding: 20px 10px; }
-        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; position: relative; }
+        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 25px; margin-bottom: 20px; border: none; }
         .hidden { display: none !important; }
-        
-        /* TIMER BAR */
-        .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+
+        /* Game Elements */
+        .timer-container { width: 100%; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-bottom: 20px; }
         #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
 
-        /* ANSWERS */
-        .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: scale(1.01); }
-        .btn-ans:disabled { opacity: 0.7; cursor: not-allowed; }
+        .btn-ans { 
+            text-align: left; padding: 18px; margin-bottom: 12px; border-radius: 12px; 
+            border: 2px solid #edf2f7; background: white; width: 100%; 
+            transition: all 0.2s ease; font-weight: 500; font-size: 16px;
+        }
+        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: translateY(-2px); }
+        .btn-ans:active { transform: scale(0.98); }
+        .btn-ans:disabled { opacity: 0.8; cursor: not-allowed; }
 
-        /* MONITOR DISPLAY */
-        #monitor-q-text { font-size: 28px; font-weight: bold; color: var(--primary-dark); margin-bottom: 20px; line-height: 1.4; }
-        .monitor-opt-card { background: #fff; border: 2px solid #ddd; padding: 15px; border-radius: 12px; font-size: 20px; margin-bottom: 10px; }
+        /* Host Monitor */
+        #monitor-q-text { font-size: 26px; font-weight: bold; color: var(--primary-dark); line-height: 1.4; margin-bottom: 25px; }
+        .monitor-opt-card { background: #fff; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; font-size: 18px; height: 100%; }
 
-        /* REVIEW STYLES */
-        .review-item { border-left: 5px solid #ddd; padding-left: 15px; margin-bottom: 20px; }
+        /* Leaderboard */
+        .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; transition: 0.3s; }
+        .lb-item:last-child { border-bottom: none; }
+        .lb-rank-1 { background: #fff9c4; border-radius: 8px; font-weight: bold; }
+
+        /* Review Styles */
+        .review-item { border-left: 5px solid #cbd5e0; padding: 15px; margin-bottom: 15px; border-radius: 0 10px 10px 0; }
         .review-item.correct { border-left-color: var(--success); background: #f0fff4; }
         .review-item.wrong { border-left-color: var(--danger); background: #fff5f5; }
-        .stat-badge { font-size: 12px; padding: 4px 8px; border-radius: 4px; margin-right: 5px; }
 
-        /* PIN & BADGE */
-        .pin-display { font-size: 32px; font-weight: bold; color: var(--primary); letter-spacing: 5px; margin: 10px 0; }
-        .badge-round { background: var(--accent); color: white; padding: 5px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; }
-
-        footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
+        footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; }
+        .pin-code { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: 4px; }
     </style>
 </head>
 <body>
@@ -60,16 +75,20 @@
         <img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'">
         <span>STUDYING BY AI 2026</span>
     </div>
-    <div onclick="location.reload()" style="cursor:pointer"><i class="fa fa-sync-alt"></i></div>
+    <div onclick="location.reload()" style="cursor:pointer; font-size: 20px;"><i class="fa fa-sync-alt"></i></div>
 </header>
 
 <main class="container">
     <div id="role-selection" class="row justify-content-center py-5">
-        <div class="col-md-6 card-custom text-center shadow">
+        <div class="col-md-6 card-custom text-center">
             <h3 class="fw-bold text-primary mb-4">HỆ THỐNG TRẮC NGHIỆM AI</h3>
             <div class="d-grid gap-3">
-                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">VAI TRÒ: GIÁO VIÊN (HOST)</button>
-                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">VAI TRÒ: THÍ SINH (USER)</button>
+                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">
+                    <i class="fa fa-chalkboard-teacher me-2"></i>GIÁO VIÊN (HOST)
+                </button>
+                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">
+                    <i class="fa fa-user-graduate me-2"></i>THÍ SINH (USER)
+                </button>
             </div>
         </div>
     </div>
@@ -79,77 +98,89 @@
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold"><i class="fa fa-file-excel text-success"></i> UPLOAD FILE CÂU HỎI</h5>
-                        <input type="file" id="file-input" class="form-control my-3">
-                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
+                        <h5 class="fw-bold mb-3"><i class="fa fa-file-excel text-success me-2"></i>Tải lên câu hỏi (Excel)</h5>
+                        <input type="file" id="file-input" class="form-control mb-3" accept=".xlsx, .xls">
+                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div><p>Đang xử lý dữ liệu...</p></div>
                     </div>
 
                     <div id="host-lobby" class="hidden text-center">
-                        <h5 class="fw-bold">PHÒNG CHỜ</h5>
-                        <div class="pin-display" id="display-pin">000000</div>
+                        <h5 class="text-muted">MÃ PHÒNG CHƠI</h5>
+                        <div class="pin-code" id="display-pin">------</div>
                         <div id="qr-display" class="my-3"></div>
                         <hr>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6>ĐANG CHỜ (<span id="wait-count">0</span>)</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="m-0">ĐÃ THAM GIA: <span id="wait-count" class="badge bg-dark">0</span></h6>
                             <button class="btn btn-sm btn-warning fw-bold" onclick="approveAll()">DUYỆT TẤT CẢ</button>
                         </div>
-                        <div id="waiting-list" class="text-start mb-3" style="max-height: 200px; overflow-y: auto;"></div>
-                        <button class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
+                        <div id="waiting-list" class="text-start mb-4" style="max-height: 180px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 10px;"></div>
+                        <button id="btn-start" class="btn btn-danger btn-lg w-100 fw-bold shadow" onclick="startRound()" disabled>BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
                     </div>
 
                     <div id="host-live-monitor" class="hidden">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge-round">Vòng <span id="monitor-round">1</span></span>
+                            <span class="badge bg-primary px-3 py-2">Vòng <span id="monitor-round">1</span></span>
                             <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
                         </div>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <div id="monitor-q-text">Đang tải...</div>
-                        <div id="monitor-options" class="row g-2"></div>
+                        <div id="monitor-q-text">Đang tải câu hỏi...</div>
+                        <div id="monitor-options" class="row g-3"></div>
                     </div>
-                    
+
                     <div id="host-review-screen" class="hidden">
                         <h4 class="fw-bold text-primary mb-3">TỔNG KẾT VÒNG CHƠI</h4>
-                        <div id="host-review-list"></div>
-                        <button class="btn btn-primary w-100 mt-3" onclick="backToLobby()">TIẾP TỤC VÒNG MỚI</button>
+                        <div id="host-review-list" style="max-height: 500px; overflow-y: auto;"></div>
+                        <button class="btn btn-primary btn-lg w-100 mt-4" onclick="backToLobby()">TIẾP TỤC VÒNG MỚI</button>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="fw-bold text-center text-primary border-bottom pb-2">BẢNG XẾP HẠNG LIVE</h5>
-                    <div id="lb-host"></div>
+                    <h5 class="fw-bold text-center text-primary border-bottom pb-3"><i class="fa fa-trophy me-2"></i>BẢNG XẾP HẠNG</h5>
+                    <div id="lb-host">
+                        <p class="text-muted text-center py-4">Chưa có dữ liệu...</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
-        <div id="user-login" class="card-custom shadow">
-            <h4 class="text-center mb-4 fw-bold">THÔNG TIN THAM GIA</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="MÃ PIN">
-            <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn...">
-            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
+    <div id="user-ui" class="hidden mx-auto" style="max-width: 550px;">
+        <div id="user-login" class="card-custom shadow-sm">
+            <h4 class="text-center mb-4 fw-bold">NHẬP THÔNG TIN</h4>
+            <div class="mb-3">
+                <label class="small fw-bold">MÃ PIN PHÒNG</label>
+                <input type="text" id="user-pin" class="form-control form-control-lg text-center fw-bold text-primary" placeholder="000000">
+            </div>
+            <div class="mb-4">
+                <label class="small fw-bold">TÊN CỦA BẠN</label>
+                <input type="text" id="user-name" class="form-control form-control-lg" placeholder="Nhập tên...">
+            </div>
+            <button class="btn btn-primary btn-lg w-100 fw-bold py-3" onclick="userJoin()">VÀO PHÒNG THI</button>
         </div>
 
         <div id="user-waiting" class="hidden card-custom text-center py-5">
-            <div class="spinner-grow text-warning mb-3"></div>
+            <div class="spinner-grow text-warning mb-3" style="width: 3rem; height: 3rem;"></div>
             <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
+            <p class="text-muted">Vui lòng đợi giáo viên bắt đầu vòng thi</p>
         </div>
 
         <div id="user-quiz-area" class="hidden card-custom">
             <div class="timer-container"><div id="user-timer-bar"></div></div>
-            <div class="d-flex justify-content-between mb-2">
-                <span id="q-idx" class="badge bg-primary">Câu 1/10</span>
-                <span id="u-score" class="fw-bold text-success">0đ</span>
-                <span id="u-rank" class="fw-bold text-info"></span>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span id="q-idx" class="badge bg-primary">Câu 0/0</span>
+                <div>
+                    <span id="u-score" class="fw-bold text-success me-2">0đ</span>
+                    <span id="u-rank" class="badge bg-info"></span>
+                </div>
             </div>
-            <h5 id="q-text" class="fw-bold mb-4"></h5>
+            <h5 id="q-text" class="fw-bold mb-4" style="line-height: 1.5;"></h5>
             <div id="q-options"></div>
         </div>
 
         <div id="user-review-screen" class="hidden">
             <div class="card-custom">
-                <h4 class="fw-bold text-center text-success mb-3">KẾT QUẢ CỦA BẠN</h4>
+                <h4 class="fw-bold text-center text-success mb-4"><i class="fa fa-clipboard-check me-2"></i>KẾT QUẢ CỦA BẠN</h4>
                 <div id="user-review-list"></div>
             </div>
         </div>
@@ -158,13 +189,20 @@
 
 <footer>
     <div class="footer-info">
-        Developer: <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>84-908-08-3566</b><br>
-        <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
+        <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>0908.08.3566</b><br>
+        <span class="opacity-75 small">Hệ thống Trắc nghiệm Thông minh AI © 2026</span>
     </div>
 </footer>
 
 <script>
-    const socket = io();
+    // Khởi tạo Socket.IO với các thông số tối ưu cho môi trường Production (Render/Gevent)
+    const socket = io({
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        timeout: 10000
+    });
+
     let timerInterval;
 
     function selectRole(role) {
@@ -173,13 +211,13 @@
         if(role === 'host') socket.emit('host_connect');
     }
 
-    // HOST ACTIONS
+    // ================== HOST LOGIC ==================
     document.getElementById('file-input').onchange = function(e) {
         const file = e.target.files[0];
         if(!file) return;
         const reader = new FileReader();
         document.getElementById('host-status').classList.remove('hidden');
-        reader.onload = () => socket.emit('host_upload_file', { name: file.name, content: reader.result });
+        reader.onload = () => socket.emit('host_upload_file', { content: reader.result });
         reader.readAsDataURL(file);
     };
 
@@ -187,7 +225,8 @@
         document.getElementById('host-setup').classList.add('hidden');
         document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('display-pin').innerText = d.pin;
-        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px" class="shadow rounded">`;
+        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:200px" class="shadow rounded border">`;
+        document.getElementById('host-status').classList.add('hidden');
     });
 
     socket.on('player_waiting', d => {
@@ -195,10 +234,11 @@
         if(document.getElementById("wait-" + d.sid)) return;
         const div = document.createElement('div');
         div.id = "wait-" + d.sid;
-        div.className = "d-flex justify-content-between align-items-center p-2 border-bottom bg-light mb-1 rounded";
-        div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success" onclick="approve('${d.sid}')">Duyệt</button>`;
+        div.className = "lb-item";
+        div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success px-3" onclick="approve('${d.sid}')">Duyệt</button>`;
         list.appendChild(div);
         document.getElementById('wait-count').innerText = list.children.length;
+        document.getElementById('btn-start').disabled = false;
     });
 
     function approve(sid) {
@@ -225,35 +265,41 @@
         document.getElementById('host-lobby').classList.remove('hidden');
     }
 
-    // USER ACTIONS
+    // ================== USER LOGIC ==================
     function userJoin() {
-        const pin = document.getElementById('user-pin').value;
-        const name = document.getElementById('user-name').value;
-        if(!pin || !name) return alert("Thiếu PIN hoặc Tên!");
+        const pin = document.getElementById('user-pin').value.trim();
+        const name = document.getElementById('user-name').value.trim();
+        if(!pin || !name) return alert("Vui lòng điền đủ PIN và Tên!");
         socket.emit('join_game', { pin, name });
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-waiting').classList.remove('hidden');
     }
 
     socket.on('player_approved', () => {
-        document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT! CHỜ GIÁO VIÊN BẮT ĐẦU...";
-        document.getElementById('wait-status-text').classList.add('text-success');
+        const txt = document.getElementById('wait-status-text');
+        txt.innerText = "ĐÃ ĐƯỢC DUYỆT!";
+        txt.className = "fw-bold text-success";
     });
 
-    // GAME ENGINE
+    // ================== GAME ENGINE ==================
     socket.on('new_question', d => {
-        // Reset screens
+        // Chuyển màn hình cho User
         document.getElementById('user-review-screen').classList.add('hidden');
         document.getElementById('user-waiting').classList.add('hidden');
         document.getElementById('user-quiz-area').classList.remove('hidden');
 
-        // Monitor
-        document.getElementById('monitor-round').innerText = d.round;
-        document.getElementById('monitor-q-text').innerText = d.question.q;
-        document.getElementById('monitor-options').innerHTML = ['a','b','c','d'].map(o => `
-            <div class="col-6"><div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
+        // Monitor của Host
+        const mRound = document.getElementById('monitor-round');
+        if(mRound) mRound.innerText = d.round;
+        const mQ = document.getElementById('monitor-q-text');
+        if(mQ) mQ.innerText = d.question.q;
+        const mOpt = document.getElementById('monitor-options');
+        if(mOpt) {
+            mOpt.innerHTML = ['a','b','c','d'].map(o => `
+                <div class="col-6"><div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
+        }
 
-        // User
+        // Quiz Area của User
         document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
         document.getElementById('q-text').innerText = d.question.q;
         const opts = document.getElementById('q-options');
@@ -265,8 +311,8 @@
             btn.onclick = (e) => {
                 disableOptions();
                 socket.emit('submit_answer', { ans: o });
-                e.target.style.borderColor = "var(--primary)";
-                e.target.style.background = "#eef6ff";
+                e.currentTarget.style.borderColor = "var(--primary)";
+                e.currentTarget.style.backgroundColor = "#eef6ff";
             };
             opts.appendChild(btn);
         });
@@ -279,10 +325,18 @@
         let timeLeft = seconds;
         function tick() {
             const pct = (timeLeft / seconds) * 100;
-            document.getElementById('user-timer-bar').style.width = pct + "%";
-            document.getElementById('host-timer-bar').style.width = pct + "%";
-            document.getElementById('monitor-time').innerText = timeLeft;
-            if(timeLeft <= 0) { clearInterval(timerInterval); disableOptions(); }
+            const uBar = document.getElementById('user-timer-bar');
+            const hBar = document.getElementById('host-timer-bar');
+            const mTime = document.getElementById('monitor-time');
+
+            if(uBar) uBar.style.width = pct + "%";
+            if(hBar) hBar.style.width = pct + "%";
+            if(mTime) mTime.innerText = timeLeft;
+
+            if(timeLeft <= 0) {
+                clearInterval(timerInterval);
+                disableOptions();
+            }
             timeLeft--;
         }
         tick();
@@ -293,12 +347,14 @@
         document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
     }
 
-    // LEADERBOARD & SCORES
+    // ================== KẾT QUẢ & BXH ==================
     socket.on('update_leaderboard', list => {
-        document.getElementById('lb-host').innerHTML = list.map((p, i) => `
-            <div class="d-flex justify-content-between align-items-center p-2 border-bottom ${i < 3 ? 'bg-light fw-bold' : ''}">
-                <span>${i==0?'🥇':i==1?'🥈':i==2?'🥉':'#'+(i+1)} ${p.name}</span>
-                <span class="badge bg-primary">${p.score}đ</span>
+        const container = document.getElementById('lb-host');
+        if(!container) return;
+        container.innerHTML = list.map((p, i) => `
+            <div class="lb-item ${i === 0 ? 'lb-rank-1' : ''}">
+                <span>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)} <b>${p.name}</b></span>
+                <span class="badge bg-primary rounded-pill">${p.score}đ</span>
             </div>`).join('');
     });
 
@@ -307,22 +363,15 @@
         document.getElementById('u-rank').innerText = d.rank ? "#" + d.rank : "";
     });
 
-    // REVIEW LOGIC
     socket.on('round_review', d => {
         document.getElementById('host-live-monitor').classList.add('hidden');
         document.getElementById('host-review-screen').classList.remove('hidden');
         
         document.getElementById('host-review-list').innerHTML = d.questions.map((q, i) => `
-            <div class="card p-3 mb-2 shadow-sm">
-                <p class="fw-bold mb-1">${i+1}. ${q.q}</p>
-                <div class="mb-2">
-                    <span class="stat-badge bg-primary">A: ${q.stats.A}</span>
-                    <span class="stat-badge bg-primary">B: ${q.stats.B}</span>
-                    <span class="stat-badge bg-primary">C: ${q.stats.C}</span>
-                    <span class="stat-badge bg-primary">D: ${q.stats.D}</span>
-                </div>
-                <p class="text-success small mb-1"><b>Đáp án:</b> ${q.ans}</p>
-                <p class="text-muted small italic"><b>Giải thích:</b> ${q.exp}</p>
+            <div class="card p-3 mb-3 shadow-sm border-0 bg-light">
+                <p class="fw-bold mb-2 text-primary">${i+1}. ${q.q}</p>
+                <p class="text-success small mb-1"><b>Đáp án đúng:</b> ${q.ans.toUpperCase()}</p>
+                <p class="text-muted small"><i><b>Giải thích:</b> ${q.exp}</i></p>
             </div>`).join('');
     });
 
@@ -333,20 +382,22 @@
         document.getElementById('user-review-list').innerHTML = d.history.map((h, i) => {
             const isCorrect = h.your_ans === h.correct_ans;
             return `
-            <div class="review-item ${isCorrect ? 'correct' : 'wrong'} rounded p-2 mb-3 shadow-sm">
-                <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
-                <p class="small mb-1">Bạn chọn: <b class="${isCorrect?'text-success':'text-danger'}">${h.your_ans || 'Bỏ trống'}</b></p>
-                <p class="small mb-1">Đáp án đúng: <b class="text-success">${h.correct_ans}</b></p>
-                <p class="text-muted extra-small"><i>${h.exp}</i></p>
-            </div>`;
+                <div class="review-item ${isCorrect ? 'correct' : 'wrong'} shadow-sm">
+                    <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
+                    <p class="small mb-1">Bạn chọn: <b class="${isCorrect ? 'text-success' : 'text-danger'}">${h.your_ans || 'Không trả lời'}</b></p>
+                    <p class="small mb-2">Đáp án: <b class="text-success">${h.correct_ans}</b></p>
+                    <p class="text-muted small border-top pt-2"><i>${h.exp}</i></p>
+                </div>`;
         }).join('');
     });
 
     socket.on('round_ended', d => {
-        document.getElementById('current-round-text').innerText = d.round + 1;
+        const rt = document.getElementById('current-round-text');
+        if(rt) rt.innerText = d.round + 1;
     });
 
-    socket.on('error', d => alert(d.msg));
+    socket.on('error', d => alert("Lỗi: " + d.msg));
 </script>
+
 </body>
 </html>
