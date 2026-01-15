@@ -19,16 +19,21 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # Lưu trữ trạng thái phiên chơi
 game_state = {
-    "all_questions": [],      
-    "current_round_qs": [],   
-    "used_q_indices": set(),  
-    "players": {},            # {sid: {name, score, round_score, joined}}
+    "all_questions": [],       
+    "current_round_qs": [],    
+    "used_q_indices": set(),   
+    "players": {},             # {sid: {name, score, round_score, joined}}
+    "host_sid": None,          # Để phân biệt host
     "is_started": False,
-    "current_round": 1,       
-    "pin": None,              
+    "current_round": 1,        
+    "pin": None,               
     "room_id": "main_room",
     "active_question_index": 0,
-    "start_time": 0
+    "start_time": 0,
+    "answered_players": set(),
+    "correct_responses": {},   # {sid: elapsed} for correct answers in current question
+    "question_timer": None,    # Để lưu timeout
+    "max_time_per_question": 15  # 15 giây
 }
 
 def generate_pin():
@@ -52,9 +57,63 @@ def prepare_round_questions():
     game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected_indices]
     return True
 
+def auto_next_question():
+    process_bonus_and_next()
+
+def process_bonus_and_next():
+    # Xử lý bonus cho top 5 nhanh nhất (chỉ những người đúng)
+    if game_state['correct_responses']:
+        sorted_responses = sorted(game_state['correct_responses'].items(), key=lambda x: x[1])  # Sort by elapsed asc
+        top_5 = sorted_responses[:5]
+        for sid, elapsed in top_5:
+            bonus = random.randint(10, 50)  # Random bonus points
+            game_state['players'][sid]['score'] += bonus
+            game_state['players'][sid]['round_score'] += bonus
+            emit('bonus_points', {'bonus': bonus}, room=sid)
+    
+    update_lb()
+    
+    # Chờ 5 giây trước khi next (simulate mini-game time)
+    time.sleep(5)
+    
+    # Next question
+    game_state['active_question_index'] += 1
+    send_question_logic()
+
+def send_question_logic():
+    idx = game_state['active_question_index']
+    if idx < 10:
+        q = game_state['current_round_qs'][idx]
+        payload = {
+            'question': q,
+            'index': idx + 1,
+            'total': 10,
+            'timer': game_state['max_time_per_question'],
+            'round': game_state['current_round']
+        }
+        game_state['start_time'] = time.time()
+        game_state['answered_players'] = set()
+        game_state['correct_responses'] = {}
+        emit('new_question', payload, room=game_state['room_id'])
+        
+        # Set server timer for auto next
+        if game_state['question_timer']:
+            game_state['question_timer'].cancel()
+        game_state['question_timer'] = socketio.call_later(game_state['max_time_per_question'], auto_next_question)
+    else:
+        # End round and send review
+        review_data = [{'q': q['q'], 'ans': q['ans'], 'exp': q['exp']} for q in game_state['current_round_qs']]
+        emit('round_review', {'questions': review_data}, room=game_state['room_id'])
+        emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
+        game_state['current_round'] += 1
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@socketio.on('host_connect')
+def host_connect():
+    game_state['host_sid'] = request.sid
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
@@ -77,7 +136,8 @@ def handle_upload(data):
                 "b": str(row.iloc[2]), 
                 "c": str(row.iloc[3]), 
                 "d": str(row.iloc[4]), 
-                "ans": str(row.iloc[5]).strip().upper()
+                "ans": str(row.iloc[5]).strip().upper(),
+                "exp": str(row.iloc[6]) if len(row) > 6 else ""  # Cột giải thích
             })
         
         game_state['all_questions'] = qs
@@ -123,28 +183,6 @@ def start_round():
     else:
         emit('error', {'msg': "Không đủ câu hỏi (Cần 10 câu mỗi vòng)!"})
 
-@socketio.on('next_question')
-def handle_next():
-    game_state['active_question_index'] += 1
-    send_question_logic()
-
-def send_question_logic():
-    idx = game_state['active_question_index']
-    if idx < 10:
-        q = game_state['current_round_qs'][idx]
-        payload = {
-            'question': q,
-            'index': idx + 1,
-            'total': 10,
-            'timer': 30,
-            'round': game_state['current_round']
-        }
-        game_state['start_time'] = time.time()
-        emit('new_question', payload, room=game_state['room_id'])
-    else:
-        emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
-        game_state['current_round'] += 1
-
 @socketio.on('submit_answer')
 def handle_ans(data):
     sid = request.sid
@@ -155,18 +193,35 @@ def handle_ans(data):
         user_ans = str(data.get('ans')).upper()
         is_correct = user_ans == current_q['ans']
         
+        elapsed = time.time() - game_state['start_time']
+        game_state['answered_players'].add(sid)
+        
         if is_correct:
-            elapsed = time.time() - game_state['start_time']
-            points = 100 + max(0, int(30 - elapsed))
+            points = 100 + max(0, int(game_state['max_time_per_question'] - elapsed))
             game_state['players'][sid]['score'] += points
             game_state['players'][sid]['round_score'] += points
+            game_state['correct_responses'][sid] = elapsed
         
         update_lb()
+        
+        # Check if all answered
+        if len(game_state['answered_players']) == len(game_state['players']):
+            if game_state['question_timer']:
+                game_state['question_timer'].cancel()
+            process_bonus_and_next()
 
 def update_lb():
     lb = sorted([{"name": v['name'], "score": v['score']} for v in game_state['players'].values()], 
                 key=lambda x: x['score'], reverse=True)
-    emit('update_leaderboard', lb, broadcast=True)
+    
+    # Emit full LB to host
+    if game_state['host_sid']:
+        emit('update_leaderboard', lb, room=game_state['host_sid'])
+    
+    # Emit personal to users
+    for sid, player in game_state['players'].items():
+        rank = next((i+1 for i, p in enumerate(lb) if p['name'] == player['name']), None)
+        emit('personal_score', {'score': player['score'], 'rank': rank}, room=sid)
 
 if __name__ == '__main__':
     # Render yêu cầu dùng biến môi trường PORT
