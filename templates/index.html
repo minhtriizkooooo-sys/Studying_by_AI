@@ -64,8 +64,12 @@
         .review-item.correct { border-left-color: var(--success); background: #f0fff4; }
         .review-item.wrong { border-left-color: var(--danger); background: #fff5f5; }
 
-        footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; }
+        /* Footer */
+        footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; border-top: 3px solid var(--accent); }
         .pin-code { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: 4px; }
+        
+        /* Màu cam cho tên và hotline */
+        .footer-highlight { color: var(--accent); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -189,7 +193,7 @@
 
 <footer>
     <div class="footer-info">
-        <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>0908.08.3566</b><br>
+        <span class="footer-highlight">Lại Nguyễn Minh Trí</span> | Hotline: <span class="footer-highlight">0908.08.3566</span><br>
         <span class="opacity-75 small">Hệ thống Trắc nghiệm Thông minh AI © 2026</span>
     </div>
 </footer>
