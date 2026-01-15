@@ -1,5 +1,5 @@
-import eventlet
-eventlet.monkey_patch()  # PHẢI ĐỂ ĐẦU TIÊN ĐỂ CHẠY TRÊN RENDER
+from gevent import monkey
+monkey.patch_all()  # PHẢI ĐỂ ĐẦU TIÊN ĐỂ CHẠY TRÊN RENDER
 
 import os
 import random
@@ -285,3 +285,4 @@ def handle_ans(data):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port)
+
