@@ -32,7 +32,7 @@ game_state = {
     "active_question_index": 0,
     "start_time": 0,
     "answered_players": set(),
-    "correct_responses": {},   # Lưu thời gian trả lời đúng để tính bonus
+    "correct_responses": {},   # {sid: elapsed_time}
     "question_timer": None,    
     "max_time_per_question": 15 
 }
@@ -63,32 +63,30 @@ def auto_next_question():
     process_bonus_and_next()
 
 def process_bonus_and_next():
-    """XỬ LÝ LOGIC CƯỚP ĐIỂM VÀ LUCKY SPIN"""
-    lb = update_lb() # Lấy BXH mới nhất
+    """XỬ LÝ LOGIC CƯỚP ĐIỂM VÀ LUCKY SPIN CHUYÊN SÂU"""
+    lb = update_lb() 
     idx = game_state['active_question_index']
     correct_ans = game_state['current_round_qs'][idx]['ans']
 
+    # Nếu có ít nhất 1 người trả lời đúng
     if game_state['correct_responses'] and len(lb) > 0:
-        # Sắp xếp những người đúng theo thời gian nhanh nhất
         sorted_correct = sorted(game_state['correct_responses'].items(), key=lambda x: x[1])
         fastest_sid = sorted_correct[0][0]
         fastest_name = game_state['players'][fastest_sid]['name']
         
-        # Người đang đứng hạng 1 (trước khi câu này được tính điểm sâu hơn)
+        # Tìm SID của người đang đứng Top 1 trước khi tính Bonus
         top_player_sid = None
-        # Tìm SID của người hạng 1 dựa vào tên trong bảng xếp hạng lb
         for sid, pdata in game_state['players'].items():
             if pdata['name'] == lb[0]['name']:
                 top_player_sid = sid
                 break
 
-        # ĐIỀU KIỆN CƯỚP ĐIỂM: Hạng 1 sai và có người khác đúng
         top_ans = game_state['players'][top_player_sid]['answers'].get(idx)
         
+        # LOGIC 1: CƯỚP ĐIỂM (Top 1 sai + Có ít nhất 1 người khác đúng)
         if top_ans != correct_ans and fastest_sid != top_player_sid:
-            # Thực hiện cướp 10%
             victim_score = game_state['players'][top_player_sid]['score']
-            steal_amount = int(victim_score * 0.1)
+            steal_amount = int(victim_score * 0.1) # Cướp 10%
             
             if steal_amount > 0:
                 game_state['players'][top_player_sid]['score'] -= steal_amount
@@ -99,13 +97,14 @@ def process_bonus_and_next():
                     'victim': lb[0]['name'],
                     'points': steal_amount
                 }, room=game_state['room_id'])
+        
+        # LOGIC 2: LUCKY SPIN (Khi không có cướp điểm xảy ra)
         else:
-            # Nếu không cướp điểm -> Tặng Lucky Spin cho người nhanh nhất
             emit('trigger_lucky_spin', room=fastest_sid)
             emit('fastest_notify', {'name': fastest_name}, room=game_state['room_id'])
 
     update_lb()
-    socketio.sleep(4) 
+    socketio.sleep(5) # Đợi 5s để xem hiệu ứng rồi mới sang câu mới
     game_state['active_question_index'] += 1
     send_question_logic()
 
@@ -125,29 +124,45 @@ def send_question_logic():
         game_state['answered_players'] = set()
         game_state['correct_responses'] = {}
         emit('new_question', payload, room=game_state['room_id'])
+        
         if game_state['question_timer']:
             game_state['question_timer'].cancel()
         game_state['question_timer'] = socketio.call_later(game_state['max_time_per_question'], auto_next_question)
     else:
-        # Hết 10 câu -> Tổng kết
+        # KẾT THÚC VÒNG - GỬI REVIEW CHI TIẾT
         review_for_host = []
         for i, q in enumerate(game_state['current_round_qs']):
-            stats = {'A': 0, 'B': 0, 'C': 0, 'D': 0}
+            stats = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'correct_list': [], 'wrong_list': []}
             for p_sid, p_data in game_state['players'].items():
+                if not p_data.get('joined'): continue
                 p_ans = p_data['answers'].get(i)
+                if p_ans == q['ans']:
+                    stats['correct_list'].append(p_data['name'])
+                else:
+                    stats['wrong_list'].append(p_data['name'])
                 if p_ans in stats: stats[p_ans] += 1
-            review_for_host.append({'q': q['q'], 'ans': q['ans'], 'exp': q.get('exp', ''), 'stats': stats})
+            
+            review_for_host.append({
+                'q': q['q'], 'ans': q['ans'], 'exp': q.get('exp', ''), 'stats': stats
+            })
 
+        # Gửi review cá nhân cho từng User
+        lb_final = update_lb()
         for sid, player in game_state['players'].items():
             if not player.get('joined'): continue
-            personal_review = []
+            rank = next((i+1 for i, p in enumerate(lb_final) if p['name'] == player['name']), 0)
+            personal_history = []
             for i, q in enumerate(game_state['current_round_qs']):
-                personal_review.append({
+                personal_history.append({
                     'q': q['q'], 'correct_ans': q['ans'],
                     'your_ans': player['answers'].get(i),
-                    'exp': q.get('exp', 'Không có giải thích chi tiết.')
+                    'exp': q.get('exp', 'Không có giải thích.')
                 })
-            emit('personal_review', {'history': personal_review}, room=sid)
+            emit('personal_review', {
+                'history': personal_history, 
+                'rank': rank, 
+                'total_score': player['score']
+            }, room=sid)
 
         emit('round_review', {'questions': review_for_host}, room=game_state['host_sid'])
         emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
@@ -162,13 +177,10 @@ def update_lb():
         emit('update_leaderboard', lb, room=game_state['host_sid'])
     for sid, player in joined_players.items():
         rank = next((i+1 for i, p in enumerate(lb) if p['name'] == player['name']), None)
-        emit('personal_score', {'score': player['score'], 'rank': rank}, room=sid)
+        emit('personal_score', {'score': player['score'], 'rank': rank, 'name': player['name']}, room=sid)
     return lb
 
-# ==========================================================
-# CÁC SỰ KIỆN SOCKET.IO
-# ==========================================================
-
+# Socket events giữ nguyên phần xử lý file và join game...
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -244,6 +256,7 @@ def handle_ans(data):
             game_state['players'][sid]['score'] += points
             game_state['correct_responses'][sid] = elapsed
         update_lb()
+        # Nếu mọi người đã trả lời xong, không đợi hết timer nữa
         if len(game_state['answered_players']) >= len([s for s, p in game_state['players'].items() if p.get('joined')]):
             if game_state['question_timer']: game_state['question_timer'].cancel()
             process_bonus_and_next()
