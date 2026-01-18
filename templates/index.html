@@ -73,6 +73,22 @@
         .review-item.correct { border-left-color: var(--success); background: #f0fff4; }
         .review-item.wrong { border-left-color: var(--danger); background: #fff5f5; }
 
+        /* HIỆU ỨNG CƯỚP ĐIỂM & SPIN */
+        #event-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white; text-align: center;
+        }
+        .event-title { font-size: 40px; font-weight: 900; text-transform: uppercase; margin-bottom: 20px; }
+        .steal-active { color: #ff3e3e; text-shadow: 0 0 20px red; animation: shake 0.5s infinite; }
+        .spin-active { color: #f1c40f; text-shadow: 0 0 20px yellow; animation: bounce 1s infinite; }
+        
+        .spin-wheel-ui { background: white; padding: 30px; border-radius: 50%; width: 250px; height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: black; border: 10px solid var(--accent); }
+        
+        @keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
+        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
+
         /* Footer */
         footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; border-top: 3px solid var(--accent); }
         .pin-code { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: 4px; }
@@ -196,6 +212,11 @@
             </div>
         </div>
     </div>
+
+    <div id="event-overlay" class="hidden">
+        <div id="event-content"></div>
+    </div>
+
 </main>
 
 <footer>
@@ -293,6 +314,7 @@
 
     // ================== GAME ENGINE ==================
     socket.on('new_question', d => {
+        document.getElementById('event-overlay').classList.add('hidden'); // Ẩn overlay khi có câu mới
         document.getElementById('user-review-screen').classList.add('hidden');
         document.getElementById('user-waiting').classList.add('hidden');
         document.getElementById('user-quiz-area').classList.remove('hidden');
@@ -354,6 +376,66 @@
         document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
     }
 
+    // ================== CƯỚP ĐIỂM & LUCKY SPIN (HIỆU ỨNG) ==================
+    
+    // 1. Hiệu ứng Cướp điểm (Tất cả mọi người đều thấy)
+    socket.on('steal_alert', d => {
+        const overlay = document.getElementById('event-overlay');
+        const content = document.getElementById('event-content');
+        overlay.classList.remove('hidden');
+        content.innerHTML = `
+            <div class="event-title steal-active">⚡ CƯỚP ĐIỂM ⚡</div>
+            <h2 class="mb-3"><b>${d.thief}</b></h2>
+            <h4>Đã cướp <span class="text-warning">${d.points}đ</span> từ <b>${d.victim}</b>!</h4>
+        `;
+    });
+
+    // 2. Hiệu ứng thông báo người nhanh nhất (Cho Host và các User khác)
+    socket.on('fastest_notify', d => {
+        const overlay = document.getElementById('event-overlay');
+        const content = document.getElementById('event-content');
+        overlay.classList.remove('hidden');
+        content.innerHTML = `
+            <div class="event-title text-info">🚀 NHANH NHẤT 🚀</div>
+            <h2><b>${d.name}</b></h2>
+            <p>Đang chuẩn bị nhận thưởng Lucky Spin...</p>
+        `;
+    });
+
+    // 3. Hiệu ứng Quay thưởng (Chỉ người nhanh nhất mới thấy)
+    socket.on('trigger_lucky_spin', () => {
+        const overlay = document.getElementById('event-overlay');
+        const content = document.getElementById('event-content');
+        overlay.classList.remove('hidden');
+        content.innerHTML = `
+            <div class="event-title spin-active">🎁 LUCKY SPIN 🎁</div>
+            <div class="spin-wheel-ui mb-4">
+                <h3 id="spin-val">?</h3>
+                <small>ĐIỂM THƯỞNG</small>
+            </div>
+            <button class="btn btn-warning btn-lg fw-bold px-5" id="btn-spin-start" onclick="runSpin()">QUAY NGAY</button>
+        `;
+    });
+
+    function runSpin() {
+        const btn = document.getElementById('btn-start-spin');
+        if(btn) btn.disabled = true;
+        let count = 0;
+        const vals = [10, 20, 30, 50, 80, 100];
+        const timer = setInterval(() => {
+            document.getElementById('spin-val').innerText = vals[Math.floor(Math.random()*vals.length)];
+            count++;
+            if(count > 20) {
+                clearInterval(timer);
+                const final = vals[Math.floor(Math.random()*vals.length)];
+                document.getElementById('spin-val').innerText = final;
+                document.getElementById('spin-val').classList.add('spin-active');
+                socket.emit('claim_spin', { points: final });
+                setTimeout(() => { document.getElementById('event-overlay').classList.add('hidden'); }, 2000);
+            }
+        }, 100);
+    }
+
     // ================== KẾT QUẢ & BXH ==================
     socket.on('update_leaderboard', list => {
         const container = document.getElementById('lb-host');
@@ -366,8 +448,10 @@
     });
 
     socket.on('personal_score', d => {
-        document.getElementById('u-score').innerText = d.score + "đ";
-        document.getElementById('u-rank').innerText = d.rank ? "#" + d.rank : "";
+        const scoreEl = document.getElementById('u-score');
+        const rankEl = document.getElementById('u-rank');
+        if(scoreEl) scoreEl.innerText = d.score + "đ";
+        if(rankEl) rankEl.innerText = d.rank ? "#" + d.rank : "";
     });
 
     socket.on('round_review', d => {
