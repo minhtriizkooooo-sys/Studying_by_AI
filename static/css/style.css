@@ -1,0 +1,30 @@
+:root { 
+    --primary: #0066cc; 
+    --primary-dark: #004a7c; 
+    --bg: #f4f7f9; 
+    --accent: #f39c12; 
+    --danger: #e74c3c; 
+}
+
+body { font-family: 'Segoe UI', sans-serif; background: var(--bg); min-height: 100vh; }
+.card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 25px; margin-bottom: 20px; }
+.hidden { display: none !important; }
+
+header { 
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
+    color: white; height: 70px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px;
+}
+
+.btn-ans { 
+    text-align: left; padding: 18px; margin-bottom: 12px; border-radius: 12px; 
+    border: 2px solid #edf2f7; background: white; width: 100%; transition: all 0.2s;
+}
+
+#event-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; color: white;
+}
+
+/* Hiệu ứng rung và nhảy */
+@keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
+.steal-active { color: #ff3e3e; animation: shake 0.5s infinite; }
