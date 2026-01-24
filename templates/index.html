@@ -9,91 +9,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-    <style>
-        :root { 
-            --primary: #0066cc; 
-            --primary-dark: #004a7c; 
-            --bg: #f4f7f9; 
-            --accent: #f39c12; 
-            --danger: #e74c3c; 
-            --success: #2ecc71; 
-        }
-        
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-
-        /* Header */
-        header { 
-            background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
-            color: white; padding: 0 20px; height: 70px; 
-            display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 1000;
-        }
-        .logo { display: flex; align-items: center; gap: 15px; font-weight: bold; font-size: 20px; }
-        
-        .logo img { 
-            height: 55px; 
-            width: auto; 
-            background: transparent; 
-            border: none; 
-            padding: 0; 
-            border-radius: 0;
-            object-fit: contain;
-        }
-
-        /* Layout & Cards */
-        main { flex: 1; padding: 20px 10px; }
-        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 25px; margin-bottom: 20px; border: none; }
-        .hidden { display: none !important; }
-
-        /* Game Elements */
-        .timer-container { width: 100%; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-bottom: 20px; }
-        #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
-
-        .btn-ans { 
-            text-align: left; padding: 18px; margin-bottom: 12px; border-radius: 12px; 
-            border: 2px solid #edf2f7; background: white; width: 100%; 
-            transition: all 0.2s ease; font-weight: 500; font-size: 16px;
-        }
-        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: translateY(-2px); }
-        .btn-ans:active { transform: scale(0.98); }
-        .btn-ans:disabled { opacity: 0.8; cursor: not-allowed; }
-
-        /* Host Monitor */
-        #monitor-q-text { font-size: 26px; font-weight: bold; color: var(--primary-dark); line-height: 1.4; margin-bottom: 25px; }
-        .monitor-opt-card { background: #fff; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; font-size: 18px; height: 100%; }
-
-        /* Leaderboard */
-        .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; transition: 0.3s; }
-        .lb-item:last-child { border-bottom: none; }
-        .lb-rank-1 { background: #fff9c4; border-radius: 8px; font-weight: bold; }
-
-        /* Review Styles */
-        .review-item { border-left: 5px solid #cbd5e0; padding: 15px; margin-bottom: 15px; border-radius: 0 10px 10px 0; }
-        .review-item.correct { border-left-color: var(--success); background: #f0fff4; }
-        .review-item.wrong { border-left-color: var(--danger); background: #fff5f5; }
-
-        /* HIỆU ỨNG CƯỚP ĐIỂM & SPIN */
-        #event-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center;
-        }
-        .event-title { font-size: 40px; font-weight: 900; text-transform: uppercase; margin-bottom: 20px; }
-        .steal-active { color: #ff3e3e; text-shadow: 0 0 20px red; animation: shake 0.5s infinite; }
-        .spin-active { color: #f1c40f; text-shadow: 0 0 20px yellow; animation: bounce 1s infinite; }
-        
-        .spin-wheel-ui { background: white; padding: 30px; border-radius: 50%; width: 250px; height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: black; border: 10px solid var(--accent); }
-        
-        @keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
-        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
-
-        /* Footer */
-        footer { background: #002d5a; color: white; padding: 20px; text-align: center; font-size: 14px; margin-top: auto; border-top: 3px solid var(--accent); }
-        .pin-code { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: 4px; }
-        .footer-highlight { color: var(--accent); font-weight: bold; }
-    </style>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
@@ -125,48 +41,28 @@
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold mb-3"><i class="fa fa-file-excel text-success me-2"></i>Tải lên câu hỏi (Excel)</h5>
+                        <h5 class="fw-bold mb-3"><i class="fa fa-file-excel text-success me-2"></i>Tải lên câu hỏi</h5>
                         <input type="file" id="file-input" class="form-control mb-3" accept=".xlsx, .xls">
-                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div><p>Đang xử lý dữ liệu...</p></div>
                     </div>
 
                     <div id="host-lobby" class="hidden text-center">
-                        <h5 class="text-muted">MÃ PHÒNG CHƠI</h5>
                         <div class="pin-code" id="display-pin">------</div>
                         <div id="qr-display" class="my-3"></div>
-                        <hr>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="m-0">ĐÃ THAM GIA: <span id="wait-count" class="badge bg-dark">0</span></h6>
-                            <button class="btn btn-sm btn-warning fw-bold" onclick="approveAll()">DUYỆT TẤT CẢ</button>
-                        </div>
-                        <div id="waiting-list" class="text-start mb-4" style="max-height: 180px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 10px;"></div>
-                        <button id="btn-start" class="btn btn-danger btn-lg w-100 fw-bold shadow" onclick="startRound()" disabled>BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
+                        <div id="waiting-list" class="text-start mb-4"></div>
+                        <button id="btn-start" class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()" disabled>BẮT ĐẦU</button>
                     </div>
 
                     <div id="host-live-monitor" class="hidden">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge bg-primary px-3 py-2">Vòng <span id="monitor-round">1</span></span>
-                            <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
-                        </div>
-                        <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <div id="monitor-q-text">Đang tải câu hỏi...</div>
+                        <h2 id="monitor-time" class="text-danger fw-bold text-center">15</h2>
+                        <div id="monitor-q-text" class="text-center"></div>
                         <div id="monitor-options" class="row g-3"></div>
-                    </div>
-
-                    <div id="host-review-screen" class="hidden">
-                        <h4 class="fw-bold text-primary mb-3">TỔNG KẾT VÒNG CHƠI</h4>
-                        <div id="host-review-list" style="max-height: 500px; overflow-y: auto;"></div>
-                        <button class="btn btn-primary btn-lg w-100 mt-4" onclick="backToLobby()">TIẾP TỤC VÒNG MỚI</button>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="fw-bold text-center text-primary border-bottom pb-3"><i class="fa fa-trophy me-2"></i>BẢNG XẾP HẠNG</h5>
-                    <div id="lb-host">
-                        <p class="text-muted text-center py-4">Chưa có dữ liệu...</p>
-                    </div>
+                    <h5 class="fw-bold text-center text-primary"><i class="fa fa-trophy"></i> BXH</h5>
+                    <div id="lb-host"></div>
                 </div>
             </div>
         </div>
@@ -174,320 +70,22 @@
 
     <div id="user-ui" class="hidden mx-auto" style="max-width: 550px;">
         <div id="user-login" class="card-custom shadow-sm">
-            <h4 class="text-center mb-4 fw-bold">NHẬP THÔNG TIN</h4>
-            <div class="mb-3">
-                <label class="small fw-bold">MÃ PIN PHÒNG</label>
-                <input type="text" id="user-pin" class="form-control form-control-lg text-center fw-bold text-primary" placeholder="000000">
-            </div>
-            <div class="mb-4">
-                <label class="small fw-bold">TÊN CỦA BẠN</label>
-                <input type="text" id="user-name" class="form-control form-control-lg" placeholder="Nhập tên...">
-            </div>
-            <button class="btn btn-primary btn-lg w-100 fw-bold py-3" onclick="userJoin()">VÀO PHÒNG THI</button>
-        </div>
-
-        <div id="user-waiting" class="hidden card-custom text-center py-5">
-            <div class="spinner-grow text-warning mb-3" style="width: 3rem; height: 3rem;"></div>
-            <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
-            <p class="text-muted">Vui lòng đợi giáo viên bắt đầu vòng thi</p>
+            <input type="text" id="user-pin" class="form-control mb-3 text-center" placeholder="MÃ PIN">
+            <input type="text" id="user-name" class="form-control mb-3" placeholder="TÊN BẠN">
+            <button class="btn btn-primary w-100 py-3" onclick="userJoin()">VÀO PHÒNG</button>
         </div>
 
         <div id="user-quiz-area" class="hidden card-custom">
-            <div class="timer-container"><div id="user-timer-bar"></div></div>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span id="q-idx" class="badge bg-primary">Câu 0/0</span>
-                <div>
-                    <span id="u-score" class="fw-bold text-success me-2">0đ</span>
-                    <span id="u-rank" class="badge bg-info"></span>
-                </div>
-            </div>
-            <h5 id="q-text" class="fw-bold mb-4" style="line-height: 1.5;"></h5>
+            <div id="q-text" class="fw-bold mb-4"></div>
             <div id="q-options"></div>
-        </div>
-
-        <div id="user-review-screen" class="hidden">
-            <div class="card-custom">
-                <h4 class="fw-bold text-center text-success mb-4"><i class="fa fa-clipboard-check me-2"></i>KẾT QUẢ CỦA BẠN</h4>
-                <div id="user-review-list"></div>
-            </div>
         </div>
     </div>
 
     <div id="event-overlay" class="hidden">
         <div id="event-content"></div>
     </div>
-
 </main>
 
-<footer>
-    <div class="footer-info">
-        <span class="footer-highlight">Developer: Lại Nguyễn Minh Trí</span> | Hotline: <span class="footer-highlight">0908.08.3566</span><br>
-        <span class="opacity-75 small">Hệ thống Trắc nghiệm Thông minh AI © 2026</span>
-    </div>
-</footer>
-
-<script>
-    const socket = io({
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 10,
-        timeout: 10000
-    });
-
-    let timerInterval;
-
-    function selectRole(role) {
-        document.getElementById('role-selection').classList.add('hidden');
-        document.getElementById(role + '-ui').classList.remove('hidden');
-        if(role === 'host') socket.emit('host_connect');
-    }
-
-    // ================== HOST LOGIC ==================
-    document.getElementById('file-input').onchange = function(e) {
-        const file = e.target.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        document.getElementById('host-status').classList.remove('hidden');
-        reader.onload = () => socket.emit('host_upload_file', { content: reader.result, name: file.name });
-        reader.readAsDataURL(file);
-    };
-
-    socket.on('qr_ready', d => {
-        document.getElementById('host-setup').classList.add('hidden');
-        document.getElementById('host-lobby').classList.remove('hidden');
-        document.getElementById('display-pin').innerText = d.pin;
-        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:200px" class="shadow rounded border">`;
-        document.getElementById('host-status').classList.add('hidden');
-    });
-
-    socket.on('player_waiting', d => {
-        const list = document.getElementById('waiting-list');
-        if(document.getElementById("wait-" + d.sid)) return;
-        const div = document.createElement('div');
-        div.id = "wait-" + d.sid;
-        div.className = "lb-item";
-        div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success px-3" onclick="approve('${d.sid}')">Duyệt</button>`;
-        list.appendChild(div);
-        document.getElementById('wait-count').innerText = list.children.length;
-        document.getElementById('btn-start').disabled = false;
-    });
-
-    function approve(sid) {
-        socket.emit('host_approve_player', { sid });
-        document.getElementById("wait-" + sid)?.remove();
-        document.getElementById('wait-count').innerText = document.getElementById('waiting-list').children.length;
-    }
-
-    function approveAll() {
-        socket.emit('host_approve_all');
-        document.getElementById('waiting-list').innerHTML = "";
-        document.getElementById('wait-count').innerText = "0";
-    }
-
-    function startRound() {
-        socket.emit('start_round');
-        document.getElementById('host-lobby').classList.add('hidden');
-        document.getElementById('host-review-screen').classList.add('hidden');
-        document.getElementById('host-live-monitor').classList.remove('hidden');
-    }
-
-    function backToLobby() {
-        document.getElementById('host-review-screen').classList.add('hidden');
-        document.getElementById('host-lobby').classList.remove('hidden');
-    }
-
-    // ================== USER LOGIC ==================
-    function userJoin() {
-        const pin = document.getElementById('user-pin').value.trim();
-        const name = document.getElementById('user-name').value.trim();
-        if(!pin || !name) return alert("Vui lòng điền đủ PIN và Tên!");
-        socket.emit('join_game', { pin, name });
-        document.getElementById('user-login').classList.add('hidden');
-        document.getElementById('user-waiting').classList.remove('hidden');
-    }
-
-    socket.on('player_approved', () => {
-        const txt = document.getElementById('wait-status-text');
-        txt.innerText = "ĐÃ ĐƯỢC DUYỆT!";
-        txt.className = "fw-bold text-success";
-    });
-
-    // ================== GAME ENGINE ==================
-    socket.on('new_question', d => {
-        document.getElementById('event-overlay').classList.add('hidden'); // Ẩn overlay khi có câu mới
-        document.getElementById('user-review-screen').classList.add('hidden');
-        document.getElementById('user-waiting').classList.add('hidden');
-        document.getElementById('user-quiz-area').classList.remove('hidden');
-
-        const mRound = document.getElementById('monitor-round');
-        if(mRound) mRound.innerText = d.round;
-        const mQ = document.getElementById('monitor-q-text');
-        if(mQ) mQ.innerText = d.question.q;
-        const mOpt = document.getElementById('monitor-options');
-        if(mOpt) {
-            mOpt.innerHTML = ['a','b','c','d'].map(o => `
-                <div class="col-6"><div class="monitor-opt-card shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
-        }
-
-        document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
-        document.getElementById('q-text').innerText = d.question.q;
-        const opts = document.getElementById('q-options');
-        opts.innerHTML = '';
-        ['a','b','c','d'].forEach(o => {
-            const btn = document.createElement('button');
-            btn.className = "btn btn-ans shadow-sm";
-            btn.innerHTML = `<b>${o.toUpperCase()}.</b> ${d.question[o]}`;
-            btn.onclick = (e) => {
-                disableOptions();
-                socket.emit('submit_answer', { ans: o });
-                e.currentTarget.style.borderColor = "var(--primary)";
-                e.currentTarget.style.backgroundColor = "#eef6ff";
-            };
-            opts.appendChild(btn);
-        });
-
-        startCountdown(d.timer);
-    });
-
-    function startCountdown(seconds) {
-        clearInterval(timerInterval);
-        let timeLeft = seconds;
-        function tick() {
-            const pct = (timeLeft / seconds) * 100;
-            const uBar = document.getElementById('user-timer-bar');
-            const hBar = document.getElementById('host-timer-bar');
-            const mTime = document.getElementById('monitor-time');
-
-            if(uBar) uBar.style.width = pct + "%";
-            if(hBar) hBar.style.width = pct + "%";
-            if(mTime) mTime.innerText = timeLeft;
-
-            if(timeLeft <= 0) {
-                clearInterval(timerInterval);
-                disableOptions();
-            }
-            timeLeft--;
-        }
-        tick();
-        timerInterval = setInterval(tick, 1000);
-    }
-
-    function disableOptions() {
-        document.querySelectorAll('.btn-ans').forEach(b => b.disabled = true);
-    }
-
-    // ================== CƯỚP ĐIỂM & LUCKY SPIN (HIỆU ỨNG) ==================
-    
-    // 1. Hiệu ứng Cướp điểm (Tất cả mọi người đều thấy)
-    socket.on('steal_alert', d => {
-        const overlay = document.getElementById('event-overlay');
-        const content = document.getElementById('event-content');
-        overlay.classList.remove('hidden');
-        content.innerHTML = `
-            <div class="event-title steal-active">⚡ CƯỚP ĐIỂM ⚡</div>
-            <h2 class="mb-3"><b>${d.thief}</b></h2>
-            <h4>Đã cướp <span class="text-warning">${d.points}đ</span> từ <b>${d.victim}</b>!</h4>
-        `;
-    });
-
-    // 2. Hiệu ứng thông báo người nhanh nhất (Cho Host và các User khác)
-    socket.on('fastest_notify', d => {
-        const overlay = document.getElementById('event-overlay');
-        const content = document.getElementById('event-content');
-        overlay.classList.remove('hidden');
-        content.innerHTML = `
-            <div class="event-title text-info">🚀 NHANH NHẤT 🚀</div>
-            <h2><b>${d.name}</b></h2>
-            <p>Đang chuẩn bị nhận thưởng Lucky Spin...</p>
-        `;
-    });
-
-    // 3. Hiệu ứng Quay thưởng (Chỉ người nhanh nhất mới thấy)
-    socket.on('trigger_lucky_spin', () => {
-        const overlay = document.getElementById('event-overlay');
-        const content = document.getElementById('event-content');
-        overlay.classList.remove('hidden');
-        content.innerHTML = `
-            <div class="event-title spin-active">🎁 LUCKY SPIN 🎁</div>
-            <div class="spin-wheel-ui mb-4">
-                <h3 id="spin-val">?</h3>
-                <small>ĐIỂM THƯỞNG</small>
-            </div>
-            <button class="btn btn-warning btn-lg fw-bold px-5" id="btn-spin-start" onclick="runSpin()">QUAY NGAY</button>
-        `;
-    });
-
-    function runSpin() {
-        const btn = document.getElementById('btn-start-spin');
-        if(btn) btn.disabled = true;
-        let count = 0;
-        const vals = [10, 20, 30, 50, 80, 100];
-        const timer = setInterval(() => {
-            document.getElementById('spin-val').innerText = vals[Math.floor(Math.random()*vals.length)];
-            count++;
-            if(count > 20) {
-                clearInterval(timer);
-                const final = vals[Math.floor(Math.random()*vals.length)];
-                document.getElementById('spin-val').innerText = final;
-                document.getElementById('spin-val').classList.add('spin-active');
-                socket.emit('claim_spin', { points: final });
-                setTimeout(() => { document.getElementById('event-overlay').classList.add('hidden'); }, 2000);
-            }
-        }, 100);
-    }
-
-    // ================== KẾT QUẢ & BXH ==================
-    socket.on('update_leaderboard', list => {
-        const container = document.getElementById('lb-host');
-        if(!container) return;
-        container.innerHTML = list.map((p, i) => `
-            <div class="lb-item ${i === 0 ? 'lb-rank-1' : ''}">
-                <span>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)} <b>${p.name}</b></span>
-                <span class="badge bg-primary rounded-pill">${p.score}đ</span>
-            </div>`).join('');
-    });
-
-    socket.on('personal_score', d => {
-        const scoreEl = document.getElementById('u-score');
-        const rankEl = document.getElementById('u-rank');
-        if(scoreEl) scoreEl.innerText = d.score + "đ";
-        if(rankEl) rankEl.innerText = d.rank ? "#" + d.rank : "";
-    });
-
-    socket.on('round_review', d => {
-        document.getElementById('host-live-monitor').classList.add('hidden');
-        document.getElementById('host-review-screen').classList.remove('hidden');
-        
-        document.getElementById('host-review-list').innerHTML = d.questions.map((q, i) => `
-            <div class="card p-3 mb-3 shadow-sm border-0 bg-light">
-                <p class="fw-bold mb-2 text-primary">${i+1}. ${q.q}</p>
-                <p class="text-success small mb-1"><b>Đáp án đúng:</b> ${q.ans.toUpperCase()}</p>
-                <p class="text-muted small"><i><b>Giải thích:</b> ${q.exp}</i></p>
-            </div>`).join('');
-    });
-
-    socket.on('personal_review', d => {
-        document.getElementById('user-quiz-area').classList.add('hidden');
-        document.getElementById('user-review-screen').classList.remove('hidden');
-        
-        document.getElementById('user-review-list').innerHTML = d.history.map((h, i) => {
-            const isCorrect = h.your_ans === h.correct_ans;
-            return `
-                <div class="review-item ${isCorrect ? 'correct' : 'wrong'} shadow-sm">
-                    <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
-                    <p class="small mb-1">Bạn chọn: <b class="${isCorrect ? 'text-success' : 'text-danger'}">${h.your_ans || 'Không trả lời'}</b></p>
-                    <p class="small mb-2">Đáp án: <b class="text-success">${h.correct_ans}</b></p>
-                    <p class="text-muted small border-top pt-2"><i>${h.exp}</i></p>
-                </div>`;
-        }).join('');
-    });
-
-    socket.on('round_ended', d => {
-        const rt = document.getElementById('current-round-text');
-        if(rt) rt.innerText = d.round + 1;
-    });
-
-    socket.on('error', d => alert("Lỗi: " + d.msg));
-</script>
+<script src="/static/js/main.js"></script>
 </body>
 </html>
