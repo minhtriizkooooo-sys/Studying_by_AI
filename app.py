@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, send_file
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'marie_curie_stable'
+app.config['SECRET_KEY'] = 'marie_curie_2024_stable'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
@@ -21,39 +21,48 @@ game_state = {
     "pin": None,
     "is_running": False,
     "current_answers_count": 0,
-    "last_winner_sid": None # SID của người thắng câu trước đó
+    "last_winner_sid": None 
 }
 
 @app.route('/')
 def index(): return render_template('index.html')
 
-@app.route('/template')
+@app.route('/download_template')
 def download_template():
+    # Tạo file mẫu chuẩn logic để Host soạn thảo
     df = pd.DataFrame(columns=['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích'])
-    df.loc[0] = ["Marie Curie sinh năm bao nhiêu?", "1867", "1870", "1890", "1900", "1867", "Bà sinh ngày 7/11/1867 tại Ba Lan."]
+    df.loc[0] = ["Ai là người phụ nữ đầu tiên nhận giải Nobel?", "Marie Curie", "Rosalind Franklin", "Ada Lovelace", "Mae Jemison", "Marie Curie", "Marie Curie là người đầu tiên nhận hai giải Nobel ở hai lĩnh vực khác nhau."]
+    df.loc[1] = ["Đơn vị đo cường độ phóng xạ là gì?", "Watt", "Curie (Ci)", "Volt", "Ampere", "Curie (Ci)", "Được đặt tên để vinh danh ông bà Curie."]
+    
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
     out.seek(0)
-    return send_file(out, as_attachment=True, download_name="mau_cau_hoi.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return send_file(out, as_attachment=True, download_name="template_cau_hoi.xlsx")
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
         header, encoded = data['content'].split(",", 1)
         file_bytes = base64.b64decode(encoded)
-        df = pd.read_excel(io.BytesIO(file_bytes)) if 'spreadsheetml' in header or 'excel' in header else pd.read_csv(io.BytesIO(file_bytes), encoding='utf-8-sig')
+        if 'spreadsheetml' in header or 'excel' in header:
+            df = pd.read_excel(io.BytesIO(file_bytes))
+        else:
+            df = pd.read_csv(io.BytesIO(file_bytes), encoding='utf-8-sig')
+        
         game_state.update({
             "all_questions": df.to_dict('records'),
             "pin": str(random.randint(100000, 999999)),
             "used_indices": set(), "players": {}, "player_names": set()
         })
+        
         qr = qrcode.QRCode(box_size=10, border=2)
         qr.add_data(game_state['pin']); qr.make(fit=True)
         buf = io.BytesIO()
         qr.make_image().save(buf, format='PNG')
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
-    except Exception as e: emit('error', {'msg': str(e)})
+    except Exception as e:
+        emit('error', {'msg': "Lỗi định dạng file: " + str(e)})
 
 @socketio.on('join_request')
 def join(data):
@@ -63,7 +72,8 @@ def join(data):
         game_state['player_names'].add(name)
         emit('new_player_waiting', {'name': name, 'sid': request.sid}, broadcast=True)
         emit('join_received')
-    else: emit('join_failed', {'msg': 'Sai PIN hoặc tên trùng'})
+    else:
+        emit('join_failed', {'msg': 'Sai PIN hoặc tên đã tồn tại'})
 
 @socketio.on('approve_player')
 def approve(data):
@@ -85,7 +95,10 @@ def start_round():
     if not game_state['all_questions']: return
     game_state['current_round_num'] += 1
     avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_indices']]
-    if len(avail) < 10: game_state['used_indices'].clear(); avail = list(range(len(game_state['all_questions'])))
+    if len(avail) < 10: 
+        game_state['used_indices'].clear()
+        avail = list(range(len(game_state['all_questions'])))
+    
     selected = random.sample(avail, min(10, len(avail)))
     game_state['used_indices'].update(selected)
     game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected]
@@ -100,12 +113,15 @@ def send_q():
         game_state['is_running'] = False
         emit('enable_review', broadcast=True)
         return
+    
     game_state['current_answers_count'] = 0
     game_state['start_time'] = time.time()
     q_data = game_state['current_round_qs'][idx]
     emit('new_q', {
         'q': {k: q_data[k] for k in ['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']},
-        'idx': idx + 1, 'total_q': len(game_state['current_round_qs']), 'round': game_state['current_round_num']
+        'idx': idx + 1, 
+        'total': len(game_state['current_round_qs']),
+        'round': game_state['current_round_num']
     }, broadcast=True)
 
 @socketio.on('submit_ans')
@@ -117,47 +133,49 @@ def handle_sub(data):
     q_idx = game_state['active_q_idx']
     q = game_state['current_round_qs'][q_idx]
     
-    # Chống nộp trùng
-    if any(h['cau'] == q_idx + 1 and h['vong'] == game_state['current_round_num'] for h in p['history']): return
-
     elapsed = time.time() - game_state['start_time']
     is_correct = (str(data['ans']).strip() == str(q['Đáp án đúng']).strip())
+    
     pts = 0
-
     if is_correct:
-        # 1. Tính điểm cơ bản (Max 100, giảm dần theo 15s)
+        # Tính điểm Realtime: Nhanh hơn được nhiều điểm hơn (Max 100)
         pts = max(10, int(100 * (1 - elapsed / 15.0)))
         
-        # 2. Logic Sự kiện đặc biệt (Chỉ dành cho người nhanh nhất mỗi câu)
+        # Sự kiện đặc biệt cho người nhanh nhất câu
         if game_state['current_answers_count'] == 0:
-            if game_state['last_winner_sid'] == sid:
-                # LUCKY SPIN: Thắng 2 câu liên tiếp
-                bonus = random.randint(20, 50)
+            if sid == game_state['last_winner_sid']:
+                # LUCKY SPIN
+                bonus = random.randint(30, 70)
                 pts += bonus
                 socketio.emit('special_event', {'type': 'lucky', 'name': p['name'], 'val': bonus})
             elif game_state['last_winner_sid'] is not None:
-                # MARK STEAL: Cướp ngôi vương
+                # MARK STEAL
                 victim_sid = game_state['last_winner_sid']
-                steal_pts = int(game_state['players'][victim_sid]['total'] * 0.1) # Cướp 10%
+                steal_pts = int(game_state['players'][victim_sid]['total'] * 0.15)
                 game_state['players'][victim_sid]['total'] -= steal_pts
                 pts += steal_pts
-                socketio.emit('special_event', {'type': 'steal', 'msg': f"🔥 {p['name']} đã cướp {steal_pts}đ từ {game_state['players'][victim_sid]['name']}!"})
+                socketio.emit('special_event', {'type': 'steal', 'msg': f"{p['name']} cướp {steal_pts}đ từ {game_state['players'][victim_sid]['name']}!"})
             game_state['last_winner_sid'] = sid
 
-    # Lưu lịch sử chi tiết
-    u_lab = next((l for l in ['A','B','C','D'] if str(q[f'Đáp án {l}']).strip() == str(data['ans']).strip()), "?")
-    c_lab = next((l for l in ['A','B','C','D'] if str(q[f'Đáp án {l}']).strip() == str(q['Đáp án đúng']).strip()), "?")
+    # Tìm nhãn đáp án (A, B, C, D)
+    u_ans = next((l for l in ['A','B','C','D'] if str(q[f'Đáp án {l}']).strip() == str(data['ans']).strip()), "?")
+    c_ans = next((l for l in ['A','B','C','D'] if str(q[f'Đáp án {l}']).strip() == str(q['Đáp án đúng']).strip()), "?")
 
     p['total'] += pts
     p['last_pts'] = pts
     p['history'].append({
-        "vong": game_state['current_round_num'], "cau": q_idx + 1, "name": p['name'],
-        "q": q['Câu hỏi'], "options": [q['Đáp án A'], q['Đáp án B'], q['Đáp án C'], q['Đáp án D']],
-        "u": u_lab, "c": c_lab, "ex": q['Giải thích'], "pts": pts, "time": round(elapsed, 2)
+        "idx": q_idx + 1,
+        "q": q['Câu hỏi'],
+        "options": {"A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D']},
+        "user_ans": u_ans,
+        "correct_ans": c_ans,
+        "explain": q['Giải thích'],
+        "pts": pts,
+        "time": round(elapsed, 2)
     })
     
     game_state['current_answers_count'] += 1
-    update_lb() # Cập nhật điểm Realtime ngay khi có người nộp bài
+    update_lb() # Cập nhật điểm Realtime ngay lập tức
 
     total_approved = sum(1 for pl in game_state['players'].values() if pl['approved'])
     if game_state['current_answers_count'] >= total_approved:
@@ -177,18 +195,26 @@ def update_lb():
 @socketio.on('get_review')
 def get_review(data):
     if data.get('is_host'):
-        all_data = []
-        # Gom nhóm review theo câu hỏi để Host dễ nhìn
+        host_review = []
         for i in range(len(game_state['current_round_qs'])):
-            q_info = game_state['current_round_qs'][i]
-            q_num = i + 1
-            responses = []
-            for p in game_state['players'].values():
-                for h in p['history']:
-                    if h['cau'] == q_num and h['vong'] == game_state['current_round_num']:
-                        responses.append({"name": p['name'], "u": h['u'], "pts": h['pts']})
-            all_data.append({"q_num": q_num, "q_text": q_info['Câu hỏi'], "ans_correct": q_info['Đáp án đúng'], "ex": q_info['Giải thích'], "responses": responses})
-        emit('render_review_host', all_data)
+            q = game_state['current_round_qs'][i]
+            q_idx = i + 1
+            user_stats = []
+            for sid, p in game_state['players'].items():
+                # Tìm lịch sử của user cho câu này
+                h = next((item for item in p['history'] if item['idx'] == q_idx), None)
+                user_stats.append({
+                    "name": p['name'],
+                    "ans": h['user_ans'] if h else "Không chọn",
+                    "pts": h['pts'] if h else 0
+                })
+            host_review.append({
+                "idx": q_idx, "q": q['Câu hỏi'], 
+                "correct": next((l for l in ['A','B','C','D'] if str(q[f'Đáp án {l}']).strip() == str(q['Đáp án đúng']).strip()), "?"),
+                "ex": q['Giải thích'], "stats": user_stats,
+                "opts": {"A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D']}
+            })
+        emit('render_review_host', host_review)
     else:
         if request.sid in game_state['players']:
             emit('render_review_user', game_state['players'][request.sid]['history'])
