@@ -5,7 +5,6 @@ from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_2026_ultra'
-# Sử dụng gevent để tương thích với Start Command trên Render
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
@@ -43,20 +42,18 @@ def handle_upload(data):
         ext = filename.split('.')[-1].lower()
         df = pd.read_csv(io.BytesIO(content), header=None) if ext == 'csv' else pd.read_excel(io.BytesIO(content), header=None)
         df = df.dropna(how='all').reset_index(drop=True)
-
         new_qs = []
         for i, row in df.iterrows():
             if i == 0 and ("câu" in str(row[0]).lower() or "question" in str(row[0]).lower()): continue
             r = row.tolist()
             if len(r) >= 6:
                 new_qs.append({"q": str(r[0]), "a": str(r[1]), "b": str(r[2]), "c": str(r[3]), "d": str(r[4]), "ans": str(r[5]).strip().upper()})
-        
         game_state['all_questions'] = new_qs
         game_state['pin'] = generate_pin()
         qr_code = generate_qr(f"{request.host_url}?pin={game_state['pin']}")
         emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, broadcast=True)
     except Exception as e:
-        emit('error', {'msg': f"Lỗi file: {str(e)}"})
+        emit('error', {'msg': f"Lỗi xử lý file: {str(e)}"})
 
 @socketio.on('join_game')
 def join_game(data):
@@ -65,7 +62,7 @@ def join_game(data):
         join_room(game_state['room_id'])
         emit('player_waiting', {'name': data['name'], 'sid': request.sid}, broadcast=True)
     else:
-        emit('error', {'msg': "Mã PIN sai!"})
+        emit('error', {'msg': "Mã PIN không đúng!"})
 
 @socketio.on('host_approve_player')
 def approve_player(data):
@@ -96,7 +93,7 @@ def send_question():
     if idx < 10:
         game_state['first_correct_sid'] = None
         game_state['start_time'] = time.time()
-        emit('new_question', {'question': game_state['current_round_qs'][idx], 'index': idx+1}, room=game_state['room_id'])
+        emit('new_question', {'question': game_state['current_round_qs'][idx], 'index': idx+1, 'total': 10}, room=game_state['room_id'])
     else:
         emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
         game_state['current_round'] += 1
