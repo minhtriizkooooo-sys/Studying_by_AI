@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, send_file
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'marie_curie_power_2024'
+app.config['SECRET_KEY'] = 'marie_curie_2026'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
@@ -21,18 +21,18 @@ def index(): return render_template('index.html')
 @app.route('/download_template')
 def download_template():
     df = pd.DataFrame(columns=['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích'])
-    df.loc[0] = ["Ví dụ: Marie Curie nhận Nobel mấy lần?", "1", "2", "3", "4", "2", "Lần 1 Vật lý, lần 2 Hóa học."]
+    df.loc[0] = ["1+1 bằng mấy?", "1", "2", "3", "4", "2", "Toán cơ bản"]
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
     out.seek(0)
-    return send_file(out, as_attachment=True, download_name="template_quiz.xlsx")
+    return send_file(out, as_attachment=True, download_name="template_marie_curie.xlsx")
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
         header, encoded = data['content'].split(",", 1)
         df = pd.read_excel(io.BytesIO(base64.b64decode(encoded)))
-        game_state.update({"all_questions": df.to_dict('records'), "pin": str(random.randint(100000, 999999)), "players": {}, "player_names": set(), "is_running": False})
+        game_state.update({"all_questions": df.to_dict('records'), "pin": str(random.randint(100000, 999999)), "players": {}, "player_names": set()})
         qr = qrcode.QRCode(box_size=10, border=2); qr.add_data(game_state['pin']); qr.make(fit=True)
         buf = io.BytesIO(); qr.make_image().save(buf, format='PNG')
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
@@ -93,7 +93,7 @@ def handle_sub(data):
     
     total_approved = sum(1 for pl in game_state['players'].values() if pl['approved'])
     if game_state['current_answers_count'] >= total_approved:
-        socketio.sleep(2); game_state['active_q_idx'] += 1; send_q()
+        socketio.sleep(1.5); game_state['active_q_idx'] += 1; send_q()
 
 @socketio.on('times_up')
 def handle_timeout():
@@ -110,7 +110,7 @@ def get_review(data):
         for i, q in enumerate(game_state['current_round_qs']):
             for sid, p in game_state['players'].items():
                 h = next((x for x in p['history'] if x['idx'] == i+1), None)
-                res.append({"name": p['name'], "idx": i+1, "q": q['Câu hỏi'], "A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D'], "u": h['u'] if h else "Bỏ qua", "c": q['Đáp án đúng'], "pts": h['pts'] if h else 0, "ex": q['Giải thích']})
+                res.append({"name": p['name'], "idx": i+1, "q": q['Câu hỏi'], "A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D'], "u": h['u'] if h else "Bỏ", "c": q['Đáp án đúng'], "pts": h['pts'] if h else 0, "ex": q['Giải thích']})
         emit('render_review', res)
     else: emit('render_review', game_state['players'][request.sid]['history'])
 
