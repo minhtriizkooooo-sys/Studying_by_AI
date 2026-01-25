@@ -5,7 +5,7 @@ import io
 import base64
 import time
 import pandas as pd
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
@@ -16,8 +16,8 @@ game_state = {
     "all_questions": [],
     "used_indices": set(),
     "current_round_qs": [],
-    "players": {},              # sid -> player info
-    "player_names": set(),      # theo dõi tên đã join (tránh trùng tên)
+    "players": {},
+    "player_names": set(),
     "active_q_idx": -1,
     "current_round_num": 0,
     "start_time": 0,
@@ -43,30 +43,17 @@ Ví dụ: Trong bài thơ Tây Tiến, hình ảnh 'đoàn binh không mọc tó
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
-        if 'content' not in data or not data['content']:
-            raise ValueError("Không nhận được nội dung file")
-
-        # Decode base64
-        header, encoded = data['content'].split(",", 1)
-        content = base64.b64decode(encoded)
-
-        # Xác định loại file tốt hơn
-        is_excel = header.lower().find('xlsx') > -1 or content.startswith(b'PK\x03\x04')  # ZIP signature của xlsx
-
-        if is_excel:
+        content = base64.b64decode(data['content'].split(",")[1])
+        if b'xl' in content[:10]:
             df = pd.read_excel(io.BytesIO(content))
         else:
             df = pd.read_csv(io.BytesIO(content), encoding='utf-8-sig')
-
+        
         df.columns = df.columns.str.strip()
         required = ['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích']
-        missing = [col for col in required if col not in df.columns]
-        if missing:
-            raise ValueError(f"File thiếu cột: {', '.join(missing)}")
-
-        if df.empty:
-            raise ValueError("File không có dữ liệu câu hỏi nào!")
-
+        if not all(col in df.columns for col in required):
+            raise ValueError("File thiếu cột: " + ", ".join(required))
+        
         game_state['all_questions'] = df.to_dict('records')
         game_state['pin'] = str(random.randint(100000, 999999))
         game_state['used_indices'] = set()
@@ -76,37 +63,25 @@ def handle_upload(data):
         game_state['is_running'] = False
         game_state['king_sid'] = None
 
-        print(f"[DEBUG] Upload thành công - PIN mới: {game_state['pin']} - Số câu hỏi: {len(game_state['all_questions'])}")
-
-        # Tạo QR
         qr = qrcode.QRCode(box_size=10, border=2)
         qr.add_data(game_state['pin'])
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
         buf = io.BytesIO()
         img.save(buf, format='PNG')
-        qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-
-        # Emit CHỈ đến host (room = sid hiện tại)
         emit('qr_ready', {
-            'qr': qr_base64,
+            'qr': base64.b64encode(buf.getvalue()).decode('utf-8'),
             'pin': game_state['pin']
         }, room=request.sid)
-
-        emit('upload_success', {'msg': 'Upload thành công! QR và PIN đã sẵn sàng.'}, room=request.sid)
-
     except Exception as e:
-        print(f"[ERROR] Upload thất bại: {str(e)}")
         emit('error', {'msg': str(e)}, room=request.sid)
-
-# Các hàm còn lại giữ nguyên (join_request, approve, start_round, send_q, process_end_q, submit_ans, update_lb, finish_all, get_review)
 
 @socketio.on('join_request')
 def join(data):
     name = data.get('name', '').strip()
     pin = data.get('pin')
     
-    if pin != game_state.get('pin'):
+    if pin != game_state['pin']:
         emit('join_failed', {'msg': 'PIN không đúng!'})
         return
     
@@ -125,9 +100,43 @@ def join(data):
     game_state['player_names'].add(name)
     
     emit('new_player_waiting', {'name': name, 'sid': sid}, broadcast=True)
-    emit('join_success', {'name': name}, room=sid)
+    emit('join_received', room=sid)  # Chỉ thông báo đã gửi yêu cầu, không vào quiz ngay
 
-# ... (các hàm khác giữ nguyên như code cũ của bạn)
+@socketio.on('approve_player')
+def approve(data):
+    sid = data.get('sid')
+    if sid in game_state['players']:
+        game_state['players'][sid]['approved'] = True
+        emit('approved_success', room=sid)  # User tự động vào quiz
+        update_lb()
+
+@socketio.on('approve_all')
+def approve_all():
+    for sid in game_state['players']:
+        game_state['players'][sid]['approved'] = True
+    emit('approved_success', broadcast=True)
+    update_lb()
+
+@socketio.on('start_next_round')
+def start_round():
+    if game_state['is_running']:
+        return
+    avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_indices']]
+    if len(avail) < 10:
+        return emit('error', {'msg': "Hết câu hỏi trong kho!"})
+    
+    game_state['current_round_num'] += 1
+    selected = random.sample(avail, 10)
+    game_state['used_indices'].update(selected)
+    game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected]
+    game_state['active_q_idx'] = 0
+    game_state['is_running'] = True
+    
+    # Gửi ngay câu hỏi đầu tiên cho tất cả
+    send_q()
+
+# Các hàm còn lại giữ nguyên (send_q, process_end_q, submit_ans, update_lb, finish_all, get_review)
+# ... (copy phần còn lại từ code cũ của bạn)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)  # bật debug để xem log dễ hơn
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
