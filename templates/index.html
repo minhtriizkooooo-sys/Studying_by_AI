@@ -160,14 +160,6 @@
         socket.emit('join_request', {name, pin});
     }
 
-    socket.on('join_received', () => {
-        alert("Yêu cầu đã gửi! Đang chờ host duyệt...");
-    });
-
-    socket.on('join_failed', d => {
-        alert("Lỗi: " + d.msg);
-    });
-
     socket.on('approved_success', () => {
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-quiz').classList.remove('hidden');
@@ -183,10 +175,6 @@
         toast.innerHTML = `Chào <strong>${myName}</strong>! Bạn đã được duyệt. Chờ host bắt đầu vòng thi 🎉`;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 5000);
-    });
-
-    socket.on('error', d => {
-        alert("Lỗi: " + (d.msg || "Có lỗi xảy ra!"));
     });
 
     socket.on('new_q', d => {
@@ -237,12 +225,9 @@
         }
     });
 
-    // Cập nhật hàm xử lý Special Event với Lucky Spin Animation
     socket.on('special_event', d => {
         const div = document.createElement('div');
         div.className = "alert alert-warning shadow mb-2 py-2";
-        
-        // Nếu là sự kiện Lucky Spin từ Server (loại 'lucky')
         if (d.type === 'lucky') {
             const spinId = "spin-" + Math.random().toString(36).substr(2, 9);
             div.className = "lucky-spin-box shadow mb-2";
@@ -252,8 +237,6 @@
                 <div class="spin-number" id="${spinId}">0</div>
             `;
             document.getElementById('event-toast').appendChild(div);
-
-            // Hiệu ứng nhảy số ngẫu nhiên
             let count = 0;
             const finalVal = d.val;
             const anim = setInterval(() => {
@@ -265,21 +248,14 @@
                 }
             }, 60);
         } else {
-            // Các sự kiện khác (như Steal/Cướp điểm)
             div.innerText = d.msg;
             document.getElementById('event-toast').appendChild(div);
         }
-        
         setTimeout(() => div.remove(), 6000);
     });
 
-    socket.on('kill_timers', () => clearInterval(clockInt));
-
     socket.on('enable_review', () => {
-        if (myRole === 'user') {
-            document.getElementById('review-btn-area').classList.remove('hidden');
-        }
-        alert("Cuộc thi đã kết thúc! Bạn có thể xem lại kết quả chi tiết.");
+        if (myRole === 'user') document.getElementById('review-btn-area').classList.remove('hidden');
     });
 
     function openReview() {
@@ -290,23 +266,24 @@
 
     socket.on('render_review', data => {
         const html = data.map(it => `
-            <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
+            <div class="dash-card border-start border-5 ${it.u === it.c ? 'border-success' : 'border-danger'} mb-3">
                 <h5 class="fw-bold">Câu ${it.cau} (Vòng ${it.vong}): ${it.q}</h5>
                 <div class="ms-3 my-3">
-                    ${it.options.map(o => `
-                        <div class="${o === it.c ? 'text-success fw-bold' : (o === it.u ? 'text-danger fw-bold' : '')}">
-                            • ${o} ${o === it.c ? ' (Đúng)' : ''}
-                        </div>
-                    `).join('')}
+                    ${it.options.map(o => `<div>• ${o}</div>`).join('')}
                 </div>
-                <div class="bg-light p-3 rounded small">
-                    <b>Giải thích:</b> ${it.ex}<br>
-                    <b>Điểm:</b> <span class="badge bg-dark">+${it.pts}</span>
+                <div class="bg-light p-3 rounded">
+                    <p class="mb-1"><b>Bạn đã chọn:</b> ${it.u}</p>
+                    <p class="mb-1"><b>Đáp án đúng:</b> ${it.c}</p>
+                    <hr>
+                    <p class="mb-0 text-primary"><b>Giải thích:</b> ${it.ex}</p>
                 </div>
+                <div class="mt-2 text-end small">Điểm nhận được: <b>+${it.pts}</b></div>
             </div>
         `).join('');
         document.getElementById('review-data').innerHTML = html || '<p class="text-center">Chưa có dữ liệu trả lời.</p>';
     });
+
+    socket.on('kill_timers', () => clearInterval(clockInt));
 </script>
 </body>
 </html>
