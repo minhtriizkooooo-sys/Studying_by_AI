@@ -32,26 +32,45 @@
 
     <div id="host-ui" class="hidden">
         <div class="row">
-            <div class="col-md-7">
+            <div class="col-md-8">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5>Tải lên Excel câu hỏi</h5>
+                        <h5 class="fw-bold mb-3">Tải lên Excel câu hỏi</h5>
                         <input type="file" id="file-input" class="form-control" accept=".xlsx, .xls">
                     </div>
+
                     <div id="host-lobby" class="hidden text-center">
-                        <div class="display-pin h2 fw-bold text-primary" id="display-pin"></div>
-                        <div id="qr-display" class="my-3"></div>
-                        <button id="btn-start" class="btn btn-danger w-100" onclick="startRound()">BẮT ĐẦU</button>
+                        <h6 class="text-muted">MÃ PHÒNG CHƠI</h6>
+                        <div class="h1 fw-bold text-primary mb-3" id="display-pin">------</div>
+                        <div id="qr-display" class="mb-4"></div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <h6>DANH SÁCH CHỜ DUYỆT:</h6>
+                            <button class="btn btn-sm btn-warning" onclick="approveAll()">DUYỆT TẤT CẢ</button>
+                        </div>
+                        <div id="waiting-list" class="border rounded p-2 mb-3" style="max-height: 200px; overflow-y: auto;"></div>
+                        <button id="btn-start" class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()" disabled>BẮT ĐẦU VÒNG 1</button>
                     </div>
-                    <div id="host-live-monitor" class="hidden">
+
+                    <div id="host-live-monitor" class="hidden text-center">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="badge bg-primary px-3 py-2">LIVE MONITOR</span>
+                            <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
+                        </div>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <h3 id="monitor-time" class="text-center text-danger"></h3>
+                        <h4 id="monitor-q-text" class="fw-bold mb-4"></h4>
+                        <div id="monitor-options" class="row g-3"></div>
+                    </div>
+
+                    <div id="host-review-screen" class="hidden">
+                        <h4 class="fw-bold text-primary mb-3">TỔNG KẾT VÒNG CHƠI</h4>
+                        <div id="host-review-list" style="max-height: 400px; overflow-y: auto;"></div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="startRound()">TIẾP TỤC VÒNG TIẾP THEO</button>
                     </div>
                 </div>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <div class="card-custom">
-                    <h5 class="text-center border-bottom pb-2">BẢNG XẾP HẠNG</h5>
+                    <h5 class="text-center border-bottom pb-2 fw-bold text-primary">BẢNG XẾP HẠNG LIVE</h5>
                     <div id="lb-host"></div>
                 </div>
             </div>
@@ -60,18 +79,33 @@
 
     <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
         <div id="user-login" class="card-custom shadow-sm">
-            <input type="text" id="user-pin" class="form-control mb-3" placeholder="MÃ PIN">
-            <input type="text" id="user-name" class="form-control mb-3" placeholder="TÊN BẠN">
-            <button class="btn btn-primary w-100" onclick="userJoin()">VÀO PHÒNG</button>
+            <h4 class="text-center mb-4 fw-bold">NHẬP THÔNG TIN</h4>
+            <input type="text" id="user-pin" class="form-control mb-3 text-center fw-bold" placeholder="MÃ PIN">
+            <input type="text" id="user-name" class="form-control mb-3" placeholder="TÊN CỦA BẠN">
+            <button class="btn btn-primary btn-lg w-100" onclick="userJoin()">VÀO PHÒNG</button>
         </div>
-        <div id="user-waiting" class="hidden card-custom text-center">
-            <div class="spinner-border text-primary"></div>
-            <p class="mt-2">Đang chờ giáo viên...</p>
+
+        <div id="user-waiting" class="hidden card-custom text-center py-5">
+            <div class="spinner-grow text-warning mb-3"></div>
+            <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
         </div>
+
         <div id="user-quiz-area" class="hidden card-custom">
             <div class="timer-container"><div id="user-timer-bar"></div></div>
-            <h5 id="q-text" class="fw-bold mb-4"></h5>
+            <div class="d-flex justify-content-between mb-3">
+                <span id="q-idx" class="badge bg-primary">Câu 0/10</span>
+                <div>
+                    <span id="u-score" class="fw-bold text-success me-2">0đ</span>
+                    <span id="u-rank" class="badge bg-info"></span>
+                </div>
+            </div>
+            <h5 id="q-text" class="fw-bold mb-4" style="line-height: 1.5;"></h5>
             <div id="q-options"></div>
+        </div>
+
+        <div id="user-review-screen" class="hidden card-custom">
+            <h4 class="fw-bold text-center text-success mb-4">KẾT QUẢ CỦA BẠN</h4>
+            <div id="user-review-list"></div>
         </div>
     </div>
 
