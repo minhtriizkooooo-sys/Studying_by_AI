@@ -1,291 +1,136 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <title>AI QUIZ MARIE CURIE</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <style>
-        :root { --navy: #001f3f; --orange: #FF4500; }
-        html, body { height: 100%; margin: 0; display: flex; flex-direction: column; overflow: hidden; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
-        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 200px 1fr 200px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
-        .logo-area img { height: 70px; width: auto; }
-        main { flex: 1; overflow-y: auto; padding: 25px; }
-        footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.95rem; }
-        .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
-        .timer-circle { font-size: 3.5rem; font-weight: 800; color: var(--orange); line-height: 1; }
-        .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; transition: 0.2s; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--navy); background: #f9f9f9; }
-        .hidden { display: none !important; }
-        .lb-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-        .highlight-name { color: var(--orange); font-weight: bold; }
-        .highlight-phone { color: var(--orange); font-weight: bold; }
-        /* Style cho Lucky Spin */
-        .lucky-spin-box { background: #fff3cd; border: 2px dashed #ffc107; border-radius: 10px; padding: 10px; text-align: center; }
-        .spin-number { font-size: 1.8rem; font-weight: 900; color: #d63384; display: block; }
-    </style>
-</head>
-<body>
-<header>
-    <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
-    <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
-</header>
+import os, random, qrcode, io, base64, time, pandas as pd
+from flask import Flask, render_template, request, send_file
+from flask_socketio import SocketIO, emit
 
-<main class="container">
-    <div id="role-select" class="text-center py-5">
-        <div class="dash-card d-inline-block px-5">
-            <h2 class="mb-4">Chào mừng bạn!</h2>
-            <button class="btn btn-dark btn-lg px-5 me-2" onclick="init('host')">BẢN HOST</button>
-            <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">BẢN USER</button>
-        </div>
-    </div>
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'marie_curie_2026_sync'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-    <div id="host-area" class="hidden">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="dash-card">
-                    <label class="form-label">Tải file câu hỏi (Excel hoặc CSV)</label>
-                    <input type="file" id="csv-file" class="form-control mb-3" accept=".xlsx,.xls,.csv">
-                    <div class="small text-muted mb-3">
-                        File cần có đúng các cột: <br>
-                        <code>Câu hỏi, Đáp án A, Đáp án B, Đáp án C, Đáp án D, Đáp án đúng, Giải thích</code><br>
-                        <a href="/template" target="_blank" class="text-primary">Xem mẫu file chuẩn</a>
-                    </div>
-                    <div id="qr-display" class="hidden text-center">
-                        <img id="qr-img" class="mb-3 shadow" style="width:180px;">
-                        <h1 id="pin-val" class="text-primary fw-bold"></h1>
-                        <div id="wait-box" class="mt-3 text-start bg-light p-3 rounded" style="max-height:220px; overflow-y:auto;"></div>
-                        <button class="btn btn-success w-100 mt-3" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
-                    </div>
-                </div>
-                <button class="btn btn-danger btn-lg w-100 mb-2 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG TIẾP THEO</button>
-                <button class="btn btn-dark w-100 shadow" onclick="socket.emit('finish_all')">KẾT THÚC CUỘC THI</button>
-            </div>
-            <div class="col-md-8">
-                <div id="host-screen" class="dash-card text-center py-5">Chờ dữ liệu...</div>
-                <div class="dash-card"><h5>BẢNG XẾP HẠNG REALTIME</h5><div id="host-lb"></div></div>
-            </div>
-        </div>
-    </div>
+# Quản lý trạng thái trò chơi
+game_state = {
+    "all_questions": [], "used_indices": set(), "current_round_qs": [],
+    "players": {}, "player_names": set(), "active_q_idx": -1,
+    "current_round_num": 0, "start_time": 0, "pin": None,
+    "is_running": False, "king_sid": None, "current_answers": {},
+    "timer_id": 0 # Để định danh phiên làm việc của timer
+}
 
-    <div id="user-area" class="hidden">
-        <div id="user-login" class="dash-card mx-auto" style="max-width: 420px;">
-            <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên của bạn" maxlength="30">
-            <input type="text" id="pin-in" class="form-control mb-3" placeholder="Nhập mã PIN" maxlength="6">
-            <button class="btn btn-primary w-100" onclick="join()">THAM GIA</button>
-        </div>
+@app.route('/')
+def index(): return render_template('index.html')
 
-        <div id="user-quiz" class="hidden">
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="dash-card text-center">
-                        <div class="timer-circle" id="clock">15.0</div>
-                        <h5 id="q-meta" class="text-muted mt-3"></h5>
-                        <h2 id="q-body" class="fw-bold my-4"></h2>
-                        <div id="ans-list"></div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="dash-card text-center">
-                        <h5>ĐIỂM CỦA BẠN</h5>
-                        <h1 id="my-pts" class="text-success fw-bold">0</h1>
-                        <hr>
-                        <h6>BẢNG XẾP HẠNG</h6>
-                        <div id="user-lb" class="text-start small"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+@app.route('/template')
+def download_template():
+    df = pd.DataFrame(columns=['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích'])
+    df.loc[0] = ["1+1 bằng mấy?", "1", "2", "3", "4", "2", "Phép tính cơ bản 1 cộng 1 là 2."]
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+    out.seek(0)
+    return send_file(out, as_attachment=True, download_name="mau_cau_hoi.xlsx")
 
-        <div id="review-btn-area" class="hidden text-center mt-4">
-            <button class="btn btn-info btn-lg px-5 shadow" onclick="openReview()">XEM LẠI KẾT QUẢ CHI TIẾT</button>
-        </div>
-    </div>
+@socketio.on('host_upload_file')
+def handle_upload(data):
+    try:
+        header, encoded = data['content'].split(",", 1)
+        file_bytes = base64.b64decode(encoded)
+        df = pd.read_excel(io.BytesIO(file_bytes)) if 'excel' in header or 'spreadsheet' in header else pd.read_csv(io.BytesIO(file_bytes), encoding='utf-8-sig')
+        game_state.update({"all_questions": df.to_dict('records'), "pin": str(random.randint(100000, 999999))})
+        qr = qrcode.QRCode(box_size=10, border=2); qr.add_data(game_state['pin']); qr.make(fit=True)
+        buf = io.BytesIO(); qr.make_image().save(buf, format='PNG')
+        emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
+    except: emit('error', {'msg': 'Lỗi đọc file. Vui lòng dùng file mẫu!'})
 
-    <div id="review-screen" class="hidden container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="m-0">BÁO CÁO KẾT QUẢ CHI TIẾT</h2>
-            <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
-        </div>
-        <div id="review-data"></div>
-    </div>
-</main>
+@socketio.on('join_request')
+def join(data):
+    name, pin = str(data.get('name', '')).strip(), str(data.get('pin', '')).strip()
+    if pin == game_state['pin'] and name not in game_state['player_names']:
+        game_state['players'][request.sid] = {"name": name, "total": 0, "last_pts": 0, "history": [], "approved": False}
+        game_state['player_names'].add(name); emit('new_player_waiting', {'name': name, 'sid': request.sid}, broadcast=True)
+    else: emit('join_failed', {'msg': 'Sai PIN hoặc tên trùng'})
 
-<div id="event-toast" style="position:fixed; bottom:80px; right:30px; width:360px; z-index:9999;"></div>
+@socketio.on('approve_all')
+def approve_all():
+    for s in game_state['players']: game_state['players'][s]['approved'] = True
+    emit('approved_success', broadcast=True); update_lb()
 
-<footer>
-    <div class="footer-info">
-        Developer: <span class="highlight-name">Lại Nguyễn Minh Trí</span> | Hotline: <span class="highlight-phone">84-908-08-3566</span><br>
-        <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
-    </div>
-</footer>
+@socketio.on('start_next_round')
+def start_round():
+    if len(game_state['all_questions']) < 10: return emit('error', {'msg': 'Cần ít nhất 10 câu!'})
+    game_state['current_round_num'] += 1
+    avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_indices']]
+    if len(avail) < 10: game_state['used_indices'].clear(); avail = list(range(len(game_state['all_questions'])))
+    selected = random.sample(avail, 10); game_state['used_indices'].update(selected)
+    game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected]
+    game_state['active_q_idx'] = 0; game_state['is_running'] = True; send_q()
 
-<script>
-    const socket = io();
-    let myRole = "", myName = "", clockInt;
+def send_q():
+    idx = game_state['active_q_idx']
+    if idx >= 10 or not game_state['is_running']:
+        game_state['is_running'] = False; socketio.emit('enable_review'); return
+    
+    game_state['current_answers'] = {}
+    game_state['start_time'] = time.time()
+    game_state['timer_id'] += 1
+    current_timer = game_state['timer_id']
+    
+    q = game_state['current_round_qs'][idx]
+    socketio.emit('new_q', {'q': q, 'idx': idx + 1, 'round': game_state['current_round_num']})
+    
+    # Auto-advance sau 15.5 giây
+    socketio.sleep(15.5)
+    if game_state['is_running'] and game_state['active_q_idx'] == idx and game_state['timer_id'] == current_timer:
+        game_state['active_q_idx'] += 1; send_q()
 
-    function init(r) {
-        myRole = r;
-        document.getElementById('role-select').classList.add('hidden');
-        document.getElementById(r + '-area').classList.remove('hidden');
-    }
+@socketio.on('submit_ans')
+def handle_sub(data):
+    sid = request.sid
+    if not game_state['is_running'] or sid in game_state['current_answers']: return
+    
+    p = game_state['players'][sid]
+    q = game_state['current_round_qs'][game_state['active_q_idx']]
+    elapsed = time.time() - game_state['start_time']
+    
+    is_correct = str(data['ans']).strip().lower() == str(q['Đáp án đúng']).strip().lower()
+    pts = max(10, int(100 * (1 - elapsed/15))) if is_correct else 0
+    
+    # Event: Lucky Spin & Steal
+    if is_correct:
+        is_fastest = not any(v.get('correct') for v in game_state['current_answers'].values())
+        if is_fastest:
+            bonus = random.randint(15, 30); pts += bonus
+            socketio.emit('special_event', {'type': 'lucky', 'name': p['name'], 'val': bonus})
+            if game_state['king_sid'] and game_state['king_sid'] != sid:
+                stolen = int(game_state['players'][game_state['king_sid']]['total'] * 0.15)
+                game_state['players'][game_state['king_sid']]['total'] -= stolen
+                pts += stolen
+                socketio.emit('special_event', {'type': 'steal', 'msg': f"⚡ {p['name']} cướp {stolen}đ từ {game_state['players'][game_state['king_sid']]['name']}!"})
 
-    document.getElementById('csv-file').onchange = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
-        reader.readAsDataURL(file);
-    };
+    p['total'] += pts; p['last_pts'] = pts
+    p['history'].append({
+        "vong": game_state['current_round_num'], "cau": game_state['active_q_idx'] + 1,
+        "q": q['Câu hỏi'], "options": [str(q['Đáp án A']), str(q['Đáp án B']), str(q['Đáp án C']), str(q['Đáp án D'])],
+        "u": data['ans'], "c": q['Đáp án đúng'], "ex": q['Giải thích'], "pts": pts
+    })
+    
+    game_state['current_answers'][sid] = {'correct': is_correct}
+    game_state['king_sid'] = max(game_state['players'], key=lambda x: game_state['players'][x]['total'])
+    update_lb()
+    
+    # Tự động chuyển câu nếu tất cả đã trả lời
+    approved_count = len([s for s in game_state['players'] if game_state['players'][s]['approved']])
+    if len(game_state['current_answers']) >= approved_count:
+        game_state['active_q_idx'] += 1; socketio.sleep(1); send_q()
 
-    socket.on('qr_ready', d => {
-        document.getElementById('qr-display').classList.remove('hidden');
-        document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
-        document.getElementById('pin-val').innerText = d.pin;
-    });
+def update_lb():
+    lb = sorted([{"name": p['name'], "total": p['total'], "last": p['last_pts']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
+    socketio.emit('lb_update', lb)
 
-    socket.on('new_player_waiting', d => {
-        const div = document.createElement('div');
-        div.className = "d-flex justify-content-between align-items-center mb-2 border-bottom pb-2";
-        div.innerHTML = `<span><b>${d.name}</b></span>
-                         <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_player',{sid:'${d.sid}'})">Duyệt</button>`;
-        document.getElementById('wait-box').appendChild(div);
-    });
+@socketio.on('get_review')
+def get_review():
+    if request.sid in game_state['players']: emit('render_review', game_state['players'][request.sid]['history'])
 
-    function join() {
-        const name = document.getElementById('name-in').value.trim();
-        const pin = document.getElementById('pin-in').value.trim();
-        if (!name || !pin) return alert("Vui lòng nhập tên và PIN!");
-        myName = name;
-        socket.emit('join_request', {name, pin});
-    }
+@socketio.on('finish_all')
+def finish():
+    game_state['is_running'] = False; socketio.emit('enable_review')
 
-    socket.on('approved_success', () => {
-        document.getElementById('user-login').classList.add('hidden');
-        document.getElementById('user-quiz').classList.remove('hidden');
-
-        const toast = document.createElement('div');
-        toast.className = "alert alert-success shadow text-center py-2";
-        toast.style.position = "fixed";
-        toast.style.top = "15%";
-        toast.style.left = "50%";
-        toast.style.transform = "translateX(-50%)";
-        toast.style.zIndex = "99999";
-        toast.style.minWidth = "300px";
-        toast.innerHTML = `Chào <strong>${myName}</strong>! Bạn đã được duyệt. Chờ host bắt đầu vòng thi 🎉`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
-    });
-
-    socket.on('new_q', d => {
-        clearInterval(clockInt);
-        if (myRole === 'user') {
-            document.getElementById('q-meta').innerText = `VÒNG ${d.round} - CÂU ${d.idx}/10`;
-            document.getElementById('q-body').innerText = d.q['Câu hỏi'];
-            const box = document.getElementById('ans-list');
-            box.innerHTML = '';
-            ['Đáp án A','Đáp án B','Đáp án C','Đáp án D'].forEach(k => {
-                const btn = document.createElement('button');
-                btn.className = 'btn-ans';
-                btn.innerText = d.q[k];
-                btn.onclick = () => {
-                    socket.emit('submit_ans', {ans: d.q[k]});
-                    box.querySelectorAll('button').forEach(b => b.disabled = true);
-                };
-                box.appendChild(btn);
-            });
-        } else {
-            document.getElementById('host-screen').innerHTML = `
-                <h5 class='text-muted'>VÒNG ${d.round} - CÂU ${d.idx}/10</h5>
-                <h2 class='fw-bold'>${d.q['Câu hỏi']}</h2>
-            `;
-        }
-
-        let t = 15.0;
-        document.getElementById('clock').innerText = '15.0';
-        clockInt = setInterval(() => {
-            t -= 0.1;
-            if (t <= 0) { t = 0; clearInterval(clockInt); }
-            document.getElementById('clock').innerText = t.toFixed(1);
-        }, 100);
-    });
-
-    socket.on('lb_update', d => {
-        const html = d.map((p,i) => `
-            <div class="lb-item">
-                <span>${i+1}. ${p.name === myName ? '<b class="text-primary">'+p.name+'</b>' : p.name}</span>
-                <span><b>${p.total}</b> <small class='text-success'>(+${p.last})</small></span>
-            </div>
-        `).join('');
-        document.getElementById('host-lb').innerHTML = html;
-        document.getElementById('user-lb').innerHTML = html;
-        if (myRole === 'user') {
-            const me = d.find(x => x.name === myName);
-            if (me) document.getElementById('my-pts').innerText = me.total;
-        }
-    });
-
-    socket.on('special_event', d => {
-        const div = document.createElement('div');
-        div.className = "alert alert-warning shadow mb-2 py-2";
-        if (d.type === 'lucky') {
-            const spinId = "spin-" + Math.random().toString(36).substr(2, 9);
-            div.className = "lucky-spin-box shadow mb-2";
-            div.innerHTML = `
-                <div class="small fw-bold text-dark">🎰 LUCKY SPIN (KING BONUS)</div>
-                <div class="fw-bold text-primary">${d.name}</div>
-                <div class="spin-number" id="${spinId}">0</div>
-            `;
-            document.getElementById('event-toast').appendChild(div);
-            let count = 0;
-            const finalVal = d.val;
-            const anim = setInterval(() => {
-                document.getElementById(spinId).innerText = "+" + Math.floor(Math.random() * 50);
-                if (++count > 15) {
-                    clearInterval(anim);
-                    document.getElementById(spinId).innerText = "+" + finalVal;
-                    document.getElementById(spinId).classList.add("text-danger");
-                }
-            }, 60);
-        } else {
-            div.innerText = d.msg;
-            document.getElementById('event-toast').appendChild(div);
-        }
-        setTimeout(() => div.remove(), 6000);
-    });
-
-    socket.on('enable_review', () => {
-        if (myRole === 'user') document.getElementById('review-btn-area').classList.remove('hidden');
-    });
-
-    function openReview() {
-        document.getElementById('user-quiz').classList.add('hidden');
-        document.getElementById('review-screen').classList.remove('hidden');
-        socket.emit('get_review');
-    }
-
-    socket.on('render_review', data => {
-    const html = data.map(it => `
-        <div class="dash-card border-start border-5 ${it.u === it.c ? 'border-success' : 'border-danger'} mb-3">
-            <h5 class="fw-bold">Câu ${it.cau} (Vòng ${it.vong}): ${it.q}</h5>
-            <div class="ms-3 my-3">
-                ${it.options.map(o => `
-                    <div class="py-1">• ${o}</div>
-                `).join('')}
-            </div>
-            <div class="bg-light p-3 rounded">
-                <p class="mb-1"><b>Bạn đã chọn:</b> ${it.u}</p>
-                <p class="mb-1"><b>Đáp án đúng:</b> ${it.c}</p>
-                <hr>
-                <p class="mb-0 text-primary"><b>Giải thích:</b> ${it.ex}</p>
-            </div>
-            <div class="mt-2 text-end"><span class="badge bg-dark">Điểm: +${it.pts}</span></div>
-        </div>
-    `).join('');
-    document.getElementById('review-data').innerHTML = html || '<p class="text-center">Chưa có dữ liệu.</p>';
-});
-
-    socket.on('kill_timers', () => clearInterval(clockInt));
-</script>
-</body>
-</html>
+if __name__ == '__main__': socketio.run(app, host='0.0.0.0', port=5000)
