@@ -9,40 +9,20 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; --success: #27ae60; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-
-        header { 
-            background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
-            color: white; padding: 0 15px; height: 60px; 
-            display: flex; justify-content: space-between; align-items: center; 
-            z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 0 15px; height: 60px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
         .logo img { height: 48px; width: auto; object-fit: contain; }
-
         main { flex: 1; padding: 20px 10px; }
         .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; }
         .hidden { display: none !important; }
-
         .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
         #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
-
         .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: translateY(-2px); }
-
+        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; }
         .user-list-box { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fcfcfc; min-height: 120px; max-height: 250px; overflow-y: auto; }
         .user-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 8px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-        footer { 
-            background: #003366; 
-            color: white; 
-            padding: 15px; 
-            text-align: center; 
-            font-size: 14px; 
-            margin-top: auto; 
-            border-top: 4px solid var(--accent); 
-        }
+        footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
         .footer-info b { color: var(--accent); }
     </style>
 </head>
@@ -70,61 +50,67 @@
         </div>
     </div>
 
-    <!-- Giao diện Host -->
+    <!-- Host UI -->
     <div id="host-ui" class="hidden">
         <div class="row">
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold text-center"><i class="fa fa-cloud-upload-alt"></i> TẢI BỘ CÂU HỎI (Excel)</h5>
+                        <h5 class="fw-bold text-center"><i class="fa fa-file-excel"></i> TẢI FILE CÂU HỎI</h5>
                         <input type="file" id="file-input" class="form-control my-4" accept=".xlsx">
-                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div> Đang xử lý...</div>
+                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
 
-                    <div id="host-lobby" class="hidden text-center">
-                        <h5>MÃ PIN: <span id="display-pin" class="text-primary fs-1 fw-bold">000000</span></h5>
-                        <div id="qr-display" class="my-4"></div>
-                        <div class="row">
+                    <div id="host-lobby" class="hidden">
+                        <h5 class="text-center">PIN: <span id="display-pin" class="fs-3 fw-bold text-primary">------</span></h5>
+                        <div id="qr-display" class="text-center my-3"></div>
+
+                        <div class="row mt-4">
                             <div class="col-6">
-                                <h6 class="text-danger">ĐANG CHỜ (<span id="wait-count">0</span>)</h6>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <h6 class="fw-bold text-danger">ĐANG CHỜ DUYỆT (<span id="wait-count">0</span>)</h6>
+                                    <button class="btn btn-sm btn-outline-success" onclick="approveAll()">DUYỆT TẤT CẢ</button>
+                                </div>
                                 <div id="waiting-list" class="user-list-box"></div>
                             </div>
                             <div class="col-6">
-                                <h6 class="text-success">ĐÃ DUYỆT</h6>
+                                <h6 class="fw-bold text-success">ĐÃ VÀO PHÒNG</h6>
                                 <div id="approved-list" class="user-list-box"></div>
                             </div>
                         </div>
-                        <button class="btn btn-danger btn-lg w-100 mt-4 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG 1</button>
+
+                        <button class="btn btn-danger btn-lg w-100 mt-4 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG</button>
                     </div>
 
                     <div id="host-live-monitor" class="hidden text-center">
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
                         <h2 id="monitor-time" class="display-4 fw-bold">15</h2>
-                        <p id="monitor-q-text" class="h5 fw-bold text-primary"></p>
+                        <p id="monitor-q-text" class="fw-bold text-primary"></p>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="text-center fw-bold text-primary">BẢNG XẾP HẠNG LIVE</h5>
-                    <div id="lb-host" class="mt-3"></div>
+                    <h5 class="fw-bold text-center text-primary">BẢNG XẾP HẠNG</h5>
+                    <div id="lb-host"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Giao diện User -->
-    <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
+    <!-- User UI -->
+    <div id="user-ui" class="hidden mx-auto" style="max-width:500px;">
         <div id="user-login" class="card-custom">
-            <h4 class="text-center fw-bold mb-4">THAM GIA PHÒNG</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center" placeholder="MÃ PIN" maxlength="6">
+            <h4 class="text-center fw-bold mb-4">THAM GIA</h4>
+            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center" placeholder="MÃ PIN">
             <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn">
             <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
         </div>
 
         <div id="user-waiting" class="hidden card-custom text-center py-5">
             <div class="spinner-grow text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
+            <h4 id="wait-status-text" class="fw-bold text-primary">ĐANG CHỜ DUYỆT...</h4>
         </div>
 
         <div id="user-quiz-area" class="hidden card-custom">
@@ -152,44 +138,57 @@
     function selectRole(role) {
         document.getElementById('role-selection').classList.add('hidden');
         document.getElementById(role + '-ui').classList.remove('hidden');
-        if (role === 'host') {
-            document.getElementById('host-welcome-name') && (document.getElementById('host-welcome-name').innerText = 'Giáo viên');
-        }
     }
 
-    // Host: upload file
-    document.getElementById('file-input').onchange = function(e) {
+    // Host upload
+    document.getElementById('file-input').onchange = e => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         document.getElementById('host-status').classList.remove('hidden');
-        reader.onload = () => {
-            socket.emit('host_upload_file', { content: reader.result });
-        };
+        reader.onload = () => socket.emit('host_upload_file', { content: reader.result });
         reader.readAsDataURL(file);
     };
 
-    socket.on('qr_ready', function(d) {
+    socket.on('qr_ready', d => {
         document.getElementById('host-setup').classList.add('hidden');
         document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('display-pin').innerText = d.pin;
-        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px; border-radius:10px;">`;
+        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px;border-radius:10px;">`;
     });
 
-    socket.on('player_waiting', function(d) {
+    // User join → host thấy realtime
+    socket.on('player_waiting', d => {
         const list = document.getElementById('waiting-list');
+        if (document.getElementById('wait-' + d.sid)) return; // tránh trùng
+
         const item = document.createElement('div');
+        item.id = 'wait-' + d.sid;
         item.className = 'user-item';
         item.innerHTML = `
-            <span><i class="fa fa-user-clock text-danger"></i> ${d.name}</span>
-            <button class="btn btn-sm btn-success" onclick="approvePlayer('${d.sid}')">Duyệt</button>
+            <span><i class="fa fa-user-clock text-danger me-2"></i>${d.name}</span>
+            <button class="btn btn-sm btn-success" onclick="approvePlayer('${d.sid}', this)">Duyệt</button>
         `;
         list.appendChild(item);
         document.getElementById('wait-count').innerText = list.children.length;
     });
 
-    function approvePlayer(sid) {
+    function approvePlayer(sid, btn) {
         socket.emit('host_approve_player', { sid });
+        btn.parentElement.remove();
+        document.getElementById('wait-count').innerText = document.getElementById('waiting-list').children.length;
+
+        // Chuyển sang danh sách đã duyệt
+        const approved = document.getElementById('approved-list');
+        const approvedItem = document.createElement('div');
+        approvedItem.className = 'user-item text-success';
+        approvedItem.innerHTML = `<i class="fa fa-check-circle me-2"></i>${btn.parentElement.querySelector('span').textContent}`;
+        approved.appendChild(approvedItem);
+    }
+
+    function approveAll() {
+        const buttons = document.querySelectorAll('#waiting-list button');
+        buttons.forEach(btn => btn.click());
     }
 
     function startRound() {
@@ -198,36 +197,22 @@
         document.getElementById('host-live-monitor').classList.remove('hidden');
     }
 
-    // User: join
+    // User side
     function userJoin() {
         const pin = document.getElementById('user-pin').value.trim();
         const name = document.getElementById('user-name').value.trim();
-        if (!pin || !name) {
-            alert('Nhập đủ PIN và tên nhé!');
-            return;
-        }
+        if (!pin || !name) return alert('Nhập PIN và tên!');
         socket.emit('join_game', { pin, name });
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-waiting').classList.remove('hidden');
     }
 
-    socket.on('player_approved', function() {
-        document.getElementById('wait-status-text').innerText = 'ĐÃ ĐƯỢC DUYỆT!';
+    socket.on('player_approved', () => {
+        document.getElementById('wait-status-text').innerText = 'ĐÃ VÀO PHÒNG!';
         document.getElementById('wait-status-text').classList.add('text-success');
     });
 
-    // Các event khác (new_question, update_leaderboard, v.v.) anh có thể thêm dần từ code cũ
-    socket.on('new_question', function(d) {
-        document.getElementById('user-waiting').classList.add('hidden');
-        document.getElementById('user-quiz-area').classList.remove('hidden');
-        document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
-        document.getElementById('q-text').innerText = d.question.q;
-        // ... thêm logic hiển thị đáp án, timer như code cũ
-    });
-
-    socket.on('error', function(d) {
-        alert(d.msg || 'Có lỗi xảy ra!');
-    });
+    socket.on('error', d => alert(d.msg || 'Lỗi!'));
 </script>
 </body>
 </html>
