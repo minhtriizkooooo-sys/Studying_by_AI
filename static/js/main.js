@@ -7,7 +7,7 @@ function selectRole(role) {
     if(role === 'host') socket.emit('host_connect');
 }
 
-// HOST LOGIC
+// ================== HOST LOGIC ==================
 document.getElementById('file-input')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     const reader = new FileReader();
@@ -19,30 +19,69 @@ socket.on('qr_ready', d => {
     document.getElementById('host-setup').classList.add('hidden');
     document.getElementById('host-lobby').classList.remove('hidden');
     document.getElementById('display-pin').innerText = d.pin;
-    document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:200px" class="shadow rounded border">`;
+    document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px" class="shadow rounded border">`;
 });
 
-function startRound() { socket.emit('start_round'); }
+socket.on('player_waiting', d => {
+    const list = document.getElementById('waiting-list');
+    if(document.getElementById("wait-" + d.sid)) return;
+    const div = document.createElement('div');
+    div.id = "wait-" + d.sid;
+    div.className = "lb-item";
+    div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success px-3" onclick="approve('${d.sid}')">Duyệt</button>`;
+    list.appendChild(div);
+    document.getElementById('btn-start').disabled = false;
+});
 
-// USER LOGIC
+function approve(sid) {
+    socket.emit('host_approve_player', { sid }); // Cần bổ sung event này trong app.py nếu chưa có hoặc dùng approve_all
+    document.getElementById("wait-" + sid)?.remove();
+}
+
+function approveAll() {
+    socket.emit('host_approve_all');
+    document.getElementById('waiting-list').innerHTML = "";
+}
+
+function startRound() {
+    socket.emit('start_round');
+    document.getElementById('host-lobby').classList.add('hidden');
+    document.getElementById('host-review-screen').classList.add('hidden');
+    document.getElementById('host-live-monitor').classList.remove('hidden');
+}
+
+// ================== USER LOGIC ==================
 function userJoin() {
     const pin = document.getElementById('user-pin').value;
     const name = document.getElementById('user-name').value;
-    if(!pin || !name) return alert("Nhập đủ PIN và Tên!");
+    if(!pin || !name) return alert("Thiếu PIN hoặc Tên!");
     socket.emit('join_game', { pin, name });
     document.getElementById('user-login').classList.add('hidden');
     document.getElementById('user-waiting').classList.remove('hidden');
 }
 
-// GAME EVENTS
+socket.on('player_approved', () => {
+    document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT! CHỜ GIÁO VIÊN BẮT ĐẦU...";
+    document.getElementById('wait-status-text').classList.add('text-success');
+});
+
+// ================== GAME ENGINE ==================
 socket.on('new_question', d => {
     document.getElementById('event-overlay').classList.add('hidden');
     document.getElementById('user-waiting').classList.add('hidden');
+    document.getElementById('user-review-screen').classList.add('hidden');
     document.getElementById('user-quiz-area').classList.remove('hidden');
-    document.getElementById('host-live-monitor')?.classList.remove('hidden');
-    document.getElementById('host-lobby')?.classList.add('hidden');
 
-    // Cập nhật câu hỏi
+    // Host Monitor Update
+    const mText = document.getElementById('monitor-q-text');
+    if(mText) {
+        mText.innerText = d.question.q;
+        document.getElementById('monitor-options').innerHTML = ['a','b','c','d'].map(o => `
+            <div class="col-6"><div class="card p-2 border shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
+    }
+
+    // User Quiz Update
+    document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
     document.getElementById('q-text').innerText = d.question.q;
     const opts = document.getElementById('q-options');
     opts.innerHTML = '';
@@ -53,7 +92,7 @@ socket.on('new_question', d => {
         btn.onclick = () => {
             socket.emit('submit_answer', { ans: o });
             Array.from(opts.children).forEach(b => b.disabled = true);
-            btn.style.background = "#eef6ff";
+            btn.style.borderColor = "var(--primary)";
         };
         opts.appendChild(btn);
     });
@@ -67,20 +106,29 @@ function startCountdown(sec) {
         const pct = (left / sec) * 100;
         if(document.getElementById('user-timer-bar')) document.getElementById('user-timer-bar').style.width = pct + "%";
         if(document.getElementById('host-timer-bar')) document.getElementById('host-timer-bar').style.width = pct + "%";
+        if(document.getElementById('monitor-time')) document.getElementById('monitor-time').innerText = left;
         if(left <= 0) clearInterval(timerInterval);
         left--;
     };
     tick(); timerInterval = setInterval(tick, 1000);
 }
 
-// SPECIAL EVENTS: STEAL & SPIN
+// ================== STEAL & SPIN ==================
 socket.on('steal_alert', d => {
     const overlay = document.getElementById('event-overlay');
     overlay.classList.remove('hidden');
     document.getElementById('event-content').innerHTML = `
         <div class="event-title steal-active">⚡ CƯỚP ĐIỂM ⚡</div>
         <h2>${d.thief}</h2>
-        <p>Đã cướp <span class="text-warning">${d.points}đ</span> từ ${d.victim}!</p>`;
+        <p>Đã cướp <span class="text-warning">${d.points}đ</span> từ <b>${d.victim}</b>!</p>`;
+});
+
+socket.on('fastest_notify', d => {
+    const overlay = document.getElementById('event-overlay');
+    overlay.classList.remove('hidden');
+    document.getElementById('event-content').innerHTML = `
+        <div class="event-title text-info">🚀 NHANH NHẤT 🚀</div>
+        <h2>${d.name}</h2><p>Đang chuẩn bị Lucky Spin...</p>`;
 });
 
 socket.on('trigger_lucky_spin', () => {
@@ -88,14 +136,14 @@ socket.on('trigger_lucky_spin', () => {
     overlay.classList.remove('hidden');
     document.getElementById('event-content').innerHTML = `
         <div class="event-title spin-active">🎁 LUCKY SPIN 🎁</div>
-        <div class="spin-wheel-ui mb-4"><h1 id="spin-val">?</h1><small>ĐIỂM</small></div>
-        <button class="btn btn-warning btn-lg fw-bold" onclick="runSpin(this)">QUAY NGAY</button>`;
+        <div class="spin-wheel-ui mb-4"><h1 id="spin-val">?</h1><small>ĐIỂM THƯỞNG</small></div>
+        <button class="btn btn-warning btn-lg fw-bold px-5" onclick="runSpin(this)">QUAY NGAY</button>`;
 });
 
 function runSpin(btn) {
     btn.disabled = true;
     let count = 0;
-    const vals = [10, 20, 50, 100, 150];
+    const vals = [10, 20, 30, 50, 80, 100];
     const timer = setInterval(() => {
         const res = vals[Math.floor(Math.random()*vals.length)];
         document.getElementById('spin-val').innerText = res;
@@ -107,12 +155,47 @@ function runSpin(btn) {
     }, 100);
 }
 
+// ================== BXH & REVIEW ==================
 socket.on('update_leaderboard', list => {
     const container = document.getElementById('lb-host');
     if(!container) return;
     container.innerHTML = list.map((p, i) => `
-        <div class="lb-item d-flex justify-content-between p-2 border-bottom">
-            <span>${i+1}. <b>${p.name}</b></span>
-            <span class="badge bg-primary">${p.score}đ</span>
+        <div class="lb-item ${i===0?'bg-warning bg-opacity-10':''}">
+            <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)} <b>${p.name}</b></span>
+            <span class="badge bg-primary rounded-pill">${p.score}đ</span>
         </div>`).join('');
+});
+
+socket.on('personal_score', d => {
+    if(document.getElementById('u-score')) document.getElementById('u-score').innerText = d.score + "đ";
+    if(document.getElementById('u-rank')) document.getElementById('u-rank').innerText = d.rank ? "#" + d.rank : "";
+});
+
+socket.on('round_review', d => {
+    document.getElementById('host-live-monitor').classList.add('hidden');
+    document.getElementById('host-review-screen').classList.remove('hidden');
+    document.getElementById('host-review-list').innerHTML = d.questions.map((q, i) => `
+        <div class="card p-3 mb-2 shadow-sm border-0 bg-light text-start">
+            <p class="fw-bold mb-1">${i+1}. ${q.q}</p>
+            <p class="text-success small mb-0"><b>Đáp án:</b> ${q.ans} | <b>Giải thích:</b> ${q.exp}</p>
+        </div>`).join('');
+});
+
+socket.on('personal_review', d => {
+    document.getElementById('user-quiz-area').classList.add('hidden');
+    document.getElementById('user-review-screen').classList.remove('hidden');
+    document.getElementById('user-review-list').innerHTML = d.history.map((h, i) => `
+        <div class="review-item ${h.your_ans === h.correct_ans ? 'correct' : 'wrong'}">
+            <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
+            <p class="small mb-0">Bạn chọn: ${h.your_ans || 'Bỏ trống'} | Đáp án: <b>${h.correct_ans}</b></p>
+            <p class="text-muted x-small italic mt-1">${h.exp}</p>
+        </div>`).join('');
+});
+
+socket.on('round_ended', d => {
+    const btn = document.getElementById('btn-start');
+    if(btn) {
+        btn.disabled = false;
+        btn.innerText = `BẮT ĐẦU VÒNG ${d.round + 1}`;
+    }
 });
