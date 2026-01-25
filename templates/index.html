@@ -169,11 +169,10 @@
     });
 
     socket.on('approved_success', () => {
-        // Tự động chuyển vào giao diện thi
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-quiz').classList.remove('hidden');
 
-        // Toast chào mừng ngắn gọn
+        // Chỉ hiển thị toast chào mừng MỘT LẦN khi được duyệt
         const toast = document.createElement('div');
         toast.className = "alert alert-success shadow text-center py-2";
         toast.style.position = "fixed";
@@ -223,8 +222,6 @@
             document.getElementById('clock').innerText = t.toFixed(1);
         }, 100);
     });
-
-    // Giữ nguyên các socket.on khác: lb_update, special_event, kill_timers, enable_review, render_review...
 
     socket.on('lb_update', d => {
         const html = d.map((p,i) => `
