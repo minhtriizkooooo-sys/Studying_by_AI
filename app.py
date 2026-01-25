@@ -1,7 +1,7 @@
 import os, random, qrcode, io, base64, time
 import pandas as pd
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'marie_curie_2026_final'
@@ -11,7 +11,7 @@ game_state = {
     "all_questions": [],
     "used_q_indices": set(),
     "current_round_qs": [],
-    "players": {}, # {sid: {name, score, approved, history}}
+    "players": {}, 
     "active_q_idx": -1,
     "current_round_num": 0,
     "start_time": 0,
@@ -28,28 +28,36 @@ def index(): return render_template('index.html')
 def handle_upload(data):
     try:
         content = base64.b64decode(data['content'].split(",")[1])
-        # Đọc file CSV/Excel hỗ trợ tiếng Việt
-        df = pd.read_csv(io.BytesIO(content))
-        game_state['all_questions'] = df.to_dict('records')
-        game_state['pin'] = str(random.randint(100000, 999999))
+        try:
+            df = pd.read_excel(io.BytesIO(content))
+        except:
+            df = pd.read_csv(io.BytesIO(content), encoding='utf-8-sig')
         
-        # Tạo QR Code
-        qr = qrcode.make(game_state['pin'])
+        df.columns = df.columns.str.strip()
+        game_state['all_questions'] = df.to_dict('records')
+        
+        # Tạo PIN và QR
+        new_pin = str(random.randint(100000, 999999))
+        game_state['pin'] = new_pin
+        
+        qr = qrcode.QRCode(box_size=10, border=2)
+        qr.add_data(new_pin)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
         buf = io.BytesIO()
-        qr.save(buf, format='PNG')
-        emit('qr_ready', {
-            'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 
-            'pin': game_state['pin']
-        })
+        img.save(buf, format='PNG')
+        qr_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        
+        emit('qr_ready', {'qr': qr_b64, 'pin': new_pin})
     except Exception as e:
-        emit('error', {'msg': "Lỗi: File phải có các cột: Câu hỏi, Đáp án A, Đáp án B, Đáp án C, Đáp án D, Đáp án đúng, Giải thích"})
+        emit('error', {'msg': f"Lỗi file: {str(e)}"})
 
 @socketio.on('join_request')
 def join_request(data):
     if data.get('pin') == game_state['pin']:
         sid = request.sid
         game_state['players'][sid] = {"name": data['name'], "score": 0, "approved": False, "history": []}
-        # Gửi đến Host để duyệt
         emit('new_player_waiting', {'name': data['name'], 'sid': sid}, broadcast=True)
 
 @socketio.on('approve_player')
@@ -71,7 +79,7 @@ def approve_all():
 def start_round():
     game_state['current_round_num'] += 1
     avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_q_indices']]
-    if len(avail) < 10: return emit('error', {'msg': "Không đủ câu hỏi mới!"})
+    if len(avail) < 10: return emit('error', {'msg': "Hết câu hỏi!"})
     
     selected = random.sample(avail, 10)
     game_state['used_q_indices'].update(selected)
@@ -97,18 +105,16 @@ def process_end_q():
     
     if idx > 0 and correct_p:
         fastest = min(correct_p, key=lambda x: correct_p[x]['time'])
-        # Lucky Spin
         if fastest == game_state['top_player_sid']:
-            bonus = random.randint(50, 200)
+            bonus = random.randint(50, 150)
             game_state['players'][fastest]['score'] += bonus
-            emit('event_msg', {'msg': f"🌟 LUCKY SPIN: {game_state['players'][fastest]['name']} +{bonus}đ!"}, broadcast=True)
-        # Mark Steal
-        elif game_state['top_player_sid'] and fastest != game_state['top_player_sid']:
+            emit('event_msg', {'msg': f"🌟 DUY TRÌ PHONG ĐỘ: {game_state['players'][fastest]['name']} +{bonus}đ!"}, broadcast=True)
+        elif game_state['top_player_sid']:
             victim = game_state['top_player_sid']
             stolen = int(game_state['players'][victim]['score'] * 0.15)
             game_state['players'][victim]['score'] -= stolen
             game_state['players'][fastest]['score'] += stolen
-            emit('event_msg', {'msg': f"⚡ MARK STEAL: {game_state['players'][fastest]['name']} cướp {stolen}đ từ {game_state['players'][victim]['name']}!"}, broadcast=True)
+            emit('event_msg', {'msg': f"⚡ CƯỚP ĐIỂM: {game_state['players'][fastest]['name']} lấy {stolen}đ từ {game_state['players'][victim]['name']}!"}, broadcast=True)
 
     if game_state['players']:
         game_state['top_player_sid'] = max(game_state['players'], key=lambda x: game_state['players'][x]['score'])
@@ -131,11 +137,11 @@ def handle_sub(data):
     if sid in game_state['current_answers']: return
     elapsed = time.time() - game_state['start_time']
     q = game_state['current_round_qs'][game_state['active_q_idx']]
-    correct = (data['ans'] == q['Đáp án đúng'])
+    correct = (str(data['ans']).strip() == str(q['Đáp án đúng']).strip())
     
     game_state['players'][sid]['history'].append({"q": q['Câu hỏi'], "u": data['ans'], "c": q['Đáp án đúng'], "ex": q['Giải thích']})
     game_state['current_answers'][sid] = {"correct": correct, "time": elapsed}
-    if correct: game_state['players'][sid]['score'] += int(100 * (1 - elapsed/15))
+    if correct: game_state['players'][sid]['score'] += int(100 * (1 - elapsed/15.5))
 
 @socketio.on('get_review')
 def get_review():
