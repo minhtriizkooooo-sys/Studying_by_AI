@@ -20,7 +20,6 @@
         .lb-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
         .highlight-name { color: var(--orange); font-weight: bold; }
         .highlight-phone { color: var(--orange); font-weight: bold; }
-        /* Style cho Lucky Spin */
         .lucky-spin-box { background: #fff3cd; border: 2px dashed #ffc107; border-radius: 10px; padding: 10px; text-align: center; }
         .spin-number { font-size: 1.8rem; font-weight: 900; color: #d63384; display: block; }
     </style>
@@ -62,7 +61,10 @@
                 <button class="btn btn-dark w-100 shadow" onclick="socket.emit('finish_all')">KẾT THÚC CUỘC THI</button>
             </div>
             <div class="col-md-8">
-                <div id="host-screen" class="dash-card text-center py-5">Chờ dữ liệu...</div>
+                <div id="host-screen" class="dash-card text-center py-5">
+                    <div class="timer-circle" id="host-clock">15.0</div>
+                    <div id="host-q-content" class="mt-4">Chờ dữ liệu...</div>
+                </div>
                 <div class="dash-card"><h5>BẢNG XẾP HẠNG REALTIME</h5><div id="host-lb"></div></div>
             </div>
         </div>
@@ -161,32 +163,21 @@
     }
 
     socket.on('join_received', () => {
-        alert("Yêu cầu đã gửi! Đang chờ host duyệt...");
-    });
-
-    socket.on('join_failed', d => {
-        alert("Lỗi: " + d.msg);
+        const loginBox = document.getElementById('user-login');
+        loginBox.innerHTML = `
+            <div class="text-center py-4">
+                <h4 class="text-navy">Chào mừng <b>${myName}</b> đến với</h4>
+                <h5 class="fw-bold text-orange">MARIE CURIE SMART EDUCATION</h5>
+                <p class="mt-3 text-muted">Yêu cầu đã gửi! Đang chờ host duyệt...</p>
+                <div class="spinner-border text-primary mt-2"></div>
+            </div>`;
     });
 
     socket.on('approved_success', () => {
         document.getElementById('user-login').classList.add('hidden');
         document.getElementById('user-quiz').classList.remove('hidden');
-
-        const toast = document.createElement('div');
-        toast.className = "alert alert-success shadow text-center py-2";
-        toast.style.position = "fixed";
-        toast.style.top = "15%";
-        toast.style.left = "50%";
-        toast.style.transform = "translateX(-50%)";
-        toast.style.zIndex = "99999";
-        toast.style.minWidth = "300px";
-        toast.innerHTML = `Chào <strong>${myName}</strong>! Bạn đã được duyệt. Chờ host bắt đầu vòng thi 🎉`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
-    });
-
-    socket.on('error', d => {
-        alert("Lỗi: " + (d.msg || "Có lỗi xảy ra!"));
+        // Toast chào mừng sau khi được duyệt
+        showToast(`Chào mừng <strong>${myName}</strong>! Bạn đã sẵn sàng.`, "success");
     });
 
     socket.on('new_q', d => {
@@ -196,30 +187,68 @@
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list');
             box.innerHTML = '';
-            ['Đáp án A','Đáp án B','Đáp án C','Đáp án D'].forEach(k => {
+            ['Đáp án A','Đáp án B','Đáp án C','Đáp án D'].forEach((k, index) => {
+                const labels = ['A', 'B', 'C', 'D'];
                 const btn = document.createElement('button');
                 btn.className = 'btn-ans';
-                btn.innerText = d.q[k];
+                btn.innerText = `${labels[index]}. ${d.q[k]}`;
                 btn.onclick = () => {
                     socket.emit('submit_ans', {ans: d.q[k]});
-                    box.querySelectorAll('button').forEach(b => b.disabled = true);
+                    Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true);
                 };
                 box.appendChild(btn);
             });
         } else {
-            document.getElementById('host-screen').innerHTML = `
+            document.getElementById('host-q-content').innerHTML = `
                 <h5 class='text-muted'>VÒNG ${d.round} - CÂU ${d.idx}/10</h5>
-                <h2 class='fw-bold'>${d.q['Câu hỏi']}</h2>
-            `;
+                <h2 class='fw-bold'>${d.q['Câu hỏi']}</h2>`;
         }
+        startCountdown();
+    });
 
+    function startCountdown() {
         let t = 15.0;
-        document.getElementById('clock').innerText = '15.0';
+        const updateDisp = (val) => {
+            if(document.getElementById('clock')) document.getElementById('clock').innerText = val;
+            if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
+        };
+        updateDisp('15.0');
         clockInt = setInterval(() => {
             t -= 0.1;
-            if (t <= 0) { t = 0; clearInterval(clockInt); }
-            document.getElementById('clock').innerText = t.toFixed(1);
+            if (t <= 0) { 
+                t = 0; 
+                clearInterval(clockInt);
+                if(myRole === 'host') socket.emit('times_up'); 
+            }
+            updateDisp(t.toFixed(1));
         }, 100);
+    }
+
+    socket.on('special_event', d => {
+        const container = document.getElementById('event-toast');
+        const div = document.createElement('div');
+        if (d.type === 'lucky') {
+            div.className = "lucky-spin-box shadow mb-2";
+            const spinId = "spin-" + Math.random().toString(36).substr(2, 5);
+            div.innerHTML = `
+                <div class="small fw-bold">🎰 LUCKY SPIN</div>
+                <div class="fw-bold text-primary">${d.name}</div>
+                <div class="spin-number" id="${spinId}">0</div>`;
+            container.appendChild(div);
+            let c = 0;
+            const anim = setInterval(() => {
+                document.getElementById(spinId).innerText = "+" + Math.floor(Math.random() * 50);
+                if (++c > 12) {
+                    clearInterval(anim);
+                    document.getElementById(spinId).innerText = "+" + d.val;
+                }
+            }, 80);
+        } else {
+            div.className = "alert alert-warning shadow mb-2";
+            div.innerHTML = `<b>⚔️ MARK STEAL!</b><br>${d.msg}`;
+            container.appendChild(div);
+        }
+        setTimeout(() => div.remove(), 5000);
     });
 
     socket.on('lb_update', d => {
@@ -227,8 +256,7 @@
             <div class="lb-item">
                 <span>${i+1}. ${p.name === myName ? '<b class="text-primary">'+p.name+'</b>' : p.name}</span>
                 <span><b>${p.total}</b> <small class='text-success'>(+${p.last})</small></span>
-            </div>
-        `).join('');
+            </div>`).join('');
         document.getElementById('host-lb').innerHTML = html;
         document.getElementById('user-lb').innerHTML = html;
         if (myRole === 'user') {
@@ -237,49 +265,9 @@
         }
     });
 
-    // Cập nhật hàm xử lý Special Event với Lucky Spin Animation
-    socket.on('special_event', d => {
-        const div = document.createElement('div');
-        div.className = "alert alert-warning shadow mb-2 py-2";
-        
-        // Nếu là sự kiện Lucky Spin từ Server (loại 'lucky')
-        if (d.type === 'lucky') {
-            const spinId = "spin-" + Math.random().toString(36).substr(2, 9);
-            div.className = "lucky-spin-box shadow mb-2";
-            div.innerHTML = `
-                <div class="small fw-bold text-dark">🎰 LUCKY SPIN (KING BONUS)</div>
-                <div class="fw-bold text-primary">${d.name}</div>
-                <div class="spin-number" id="${spinId}">0</div>
-            `;
-            document.getElementById('event-toast').appendChild(div);
-
-            // Hiệu ứng nhảy số ngẫu nhiên
-            let count = 0;
-            const finalVal = d.val;
-            const anim = setInterval(() => {
-                document.getElementById(spinId).innerText = "+" + Math.floor(Math.random() * 50);
-                if (++count > 15) {
-                    clearInterval(anim);
-                    document.getElementById(spinId).innerText = "+" + finalVal;
-                    document.getElementById(spinId).classList.add("text-danger");
-                }
-            }, 60);
-        } else {
-            // Các sự kiện khác (như Steal/Cướp điểm)
-            div.innerText = d.msg;
-            document.getElementById('event-toast').appendChild(div);
-        }
-        
-        setTimeout(() => div.remove(), 6000);
-    });
-
-    socket.on('kill_timers', () => clearInterval(clockInt));
-
     socket.on('enable_review', () => {
-        if (myRole === 'user') {
-            document.getElementById('review-btn-area').classList.remove('hidden');
-        }
-        alert("Cuộc thi đã kết thúc! Bạn có thể xem lại kết quả chi tiết.");
+        if (myRole === 'user') document.getElementById('review-btn-area').classList.remove('hidden');
+        alert("Vòng thi kết thúc! Bạn có thể xem lại kết quả.");
     });
 
     function openReview() {
@@ -289,24 +277,33 @@
     }
 
     socket.on('render_review', data => {
-        const html = data.map(it => `
-            <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
-                <h5 class="fw-bold">Câu ${it.cau} (Vòng ${it.vong}): ${it.q}</h5>
+        document.getElementById('review-data').innerHTML = data.map(it => `
+            <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3 text-start">
+                <h5 class="fw-bold">Câu ${it.cau}: ${it.q}</h5>
                 <div class="ms-3 my-3">
-                    ${it.options.map(o => `
-                        <div class="${o === it.c ? 'text-success fw-bold' : (o === it.u ? 'text-danger fw-bold' : '')}">
-                            • ${o} ${o === it.c ? ' (Đúng)' : ''}
-                        </div>
-                    `).join('')}
+                    ${it.options.map((o, idx) => {
+                        const labels = ['A','B','C','D'];
+                        const isCorrect = labels[idx] === it.c;
+                        const isUser = labels[idx] === it.u;
+                        let colorClass = isCorrect ? 'text-success fw-bold' : (isUser ? 'text-danger fw-bold' : '');
+                        return `<div class="${colorClass}">${labels[idx]}. ${o} ${isCorrect ? '✓' : ''} ${isUser && !isCorrect ? '✗' : ''}</div>`;
+                    }).join('')}
                 </div>
                 <div class="bg-light p-3 rounded small">
                     <b>Giải thích:</b> ${it.ex}<br>
-                    <b>Điểm:</b> <span class="badge bg-dark">+${it.pts}</span>
+                    <b>Điểm nhận được:</b> <span class="badge bg-dark">+${it.pts}</span>
                 </div>
-            </div>
-        `).join('');
-        document.getElementById('review-data').innerHTML = html || '<p class="text-center">Chưa có dữ liệu trả lời.</p>';
+            </div>`).join('') || '<p>Chưa có dữ liệu.</p>';
     });
+
+    function showToast(msg, type="warning") {
+        const div = document.createElement('div');
+        div.className = `alert alert-${type} shadow text-center py-2`;
+        div.style.cssText = "position:fixed; top:20%; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px;";
+        div.innerHTML = msg;
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 4000);
+    }
 </script>
 </body>
 </html>
