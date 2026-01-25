@@ -3,149 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>STUDYING BY AI 2026</title>
+    <title>STUDYING BY AI 2026 - LUCKY SPIN</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; --success: #27ae60; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 0 15px; height: 60px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-        .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
-        .logo img { height: 48px; width: auto; object-fit: contain; }
-        main { flex: 1; padding: 20px 10px; }
-        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; }
+        :root { --primary: #0066cc; --accent: #f39c12; --danger: #e74c3c; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f9; min-height: 100vh; margin: 0; }
+        header { background: linear-gradient(135deg, #004a7c, var(--primary)); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
         .hidden { display: none !important; }
-        .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
-        #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
-        .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; }
-        .user-list-box { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fcfcfc; min-height: 120px; max-height: 250px; overflow-y: auto; }
-        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 8px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
-        .footer-info b { color: var(--accent); }
+        .timer-bar { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+        #inner-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
+        .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; font-weight: 500; }
+        .btn-ans:hover { border-color: var(--primary); }
+        
+        /* LUCKY SPIN UI */
+        #spin-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        .wheel { width: 280px; height: 280px; border-radius: 50%; border: 8px solid gold; position: relative; transition: transform 4s cubic-bezier(0.1, 0, 0.2, 1); background: conic-gradient(#e74c3c 0% 25%, #3498db 25% 50%, #2ecc71 50% 75%, #f1c40f 75% 100%); }
+        .wheel::after { content: "▼"; position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: gold; font-size: 30px; }
+        
+        footer { background: #003366; color: white; padding: 15px; text-align: center; margin-top: auto; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="logo">
-        <img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'">
-        <span>STUDYING BY AI 2026</span>
-    </div>
-    <div onclick="location.reload()" style="cursor:pointer"><i class="fa fa-sync-alt"></i></div>
+    <div class="logo"><b>STUDYING BY AI 2026</b></div>
+    <div onclick="location.reload()"><i class="fa fa-sync"></i></div>
 </header>
 
-<main class="container">
-    <!-- Chọn vai trò -->
-    <div id="role-selection" class="row justify-content-center py-5">
-        <div class="col-md-6 card-custom text-center shadow">
-            <h3 class="fw-bold text-primary mb-4">HỆ THỐNG TRẮC NGHIỆM AI</h3>
-            <div class="d-grid gap-3">
-                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">VAI TRÒ: GIÁO VIÊN (HOST)</button>
-                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">VAI TRÒ: THÍ SINH (USER)</button>
-            </div>
+<main class="container py-4">
+    <div id="role-selection" class="text-center py-5">
+        <div class="card-custom d-inline-block p-5">
+            <h3 class="mb-4">CHỌN VAI TRÒ</h3>
+            <button class="btn btn-primary btn-lg m-2" onclick="selectRole('host')">GIÁO VIÊN</button>
+            <button class="btn btn-outline-dark btn-lg m-2" onclick="selectRole('user')">THÍ SINH</button>
         </div>
     </div>
 
-    <!-- Giao diện Host -->
     <div id="host-ui" class="hidden">
         <div class="row">
             <div class="col-md-7">
-                <div class="card-custom">
-                    <div id="host-setup">
-                        <h5 class="fw-bold text-center"><i class="fa fa-file-excel"></i> TẢI FILE CÂU HỎI</h5>
-                        <input type="file" id="file-input" class="form-control my-4" accept=".xlsx,.xls">
-                        <div id="host-status" class="hidden text-center mt-3"><div class="spinner-border text-primary"></div> Đang xử lý...</div>
-                    </div>
-
-                    <div id="host-lobby" class="hidden">
-                        <h5 class="text-center fw-bold">MÃ PIN: <span id="display-pin" class="text-primary fs-2">------</span></h5>
-                        <div id="qr-display" class="text-center my-4"></div>
-
-                        <div class="row mt-4">
-                            <div class="col-md-6">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="fw-bold text-danger">ĐANG CHỜ DUYỆT (<span id="wait-count">0</span>)</h6>
-                                    <button class="btn btn-sm btn-outline-success fw-bold" onclick="approveAll()">DUYỆT TẤT CẢ</button>
-                                </div>
-                                <div id="waiting-list" class="user-list-box"></div>
-                            </div>
-                            <div class="col-md-6">
-                                <h6 class="fw-bold text-success">ĐÃ DUYỆT VÀO PHÒNG</h6>
-                                <div id="approved-list" class="user-list-box"></div>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-danger btn-lg w-100 mt-4 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG</button>
-                    </div>
-
-                    <div id="host-live-monitor" class="hidden text-center">
-                        <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <h2 id="monitor-time" class="display-4 fw-bold">15</h2>
-                        <p id="monitor-q-text" class="fw-bold mt-3 text-primary"></p>
-                    </div>
+                <div class="card-custom" id="host-setup">
+                    <h5>UPLOAD FILE CÂU HỎI</h5>
+                    <input type="file" id="file-input" class="form-control my-3">
+                </div>
+                <div class="card-custom hidden" id="host-lobby">
+                    <h4>MÃ PIN: <span id="display-pin" class="text-primary">000000</span></h4>
+                    <div id="qr-display" class="my-3 text-center"></div>
+                    <div id="waiting-list" class="mb-3"></div>
+                    <button class="btn btn-danger w-100" onclick="socket.emit('start_round')">BẮT ĐẦU</button>
+                </div>
+                <div class="card-custom hidden" id="host-monitor">
+                    <h5 id="mon-q"></h5>
+                    <button class="btn btn-warning mt-3" onclick="socket.emit('next_question_request')">CÂU TIẾP THEO</button>
                 </div>
             </div>
-
             <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="fw-bold text-center text-primary border-bottom pb-2">BẢNG XẾP HẠNG LIVE</h5>
-                    <div id="lb-host" class="mt-3"></div>
+                    <h6>BẢNG XẾP HẠNG</h6>
+                    <div id="lb-display"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Giao diện User -->
-    <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
-        <div id="user-login" class="card-custom shadow">
-            <h4 class="text-center fw-bold mb-4">THAM GIA PHÒNG</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="MÃ PIN" maxlength="6">
-            <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn..." maxlength="20">
-            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
+    <div id="user-ui" class="hidden mx-auto" style="max-width: 450px;">
+        <div id="user-login" class="card-custom">
+            <input type="text" id="u-pin" class="form-control mb-2" placeholder="PIN">
+            <input type="text" id="u-name" class="form-control mb-2" placeholder="Tên của bạn">
+            <button class="btn btn-primary w-100" onclick="userJoin()">THAM GIA</button>
         </div>
-
-        <div id="user-waiting" class="hidden card-custom text-center py-5">
-            <div class="spinner-grow text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold text-primary">ĐANG CHỜ GIÁO VIÊN DUYỆT...</h4>
-            <p class="text-muted small mt-3">Vui lòng giữ trang mở.</p>
-        </div>
-
-        <div id="user-quiz-area" class="hidden card-custom">
-            <div class="timer-container"><div id="user-timer-bar"></div></div>
-            <div class="d-flex justify-content-between mb-3">
-                <span id="q-idx" class="badge bg-primary px-3 py-2">Câu 1/10</span>
-                <span id="u-score" class="fw-bold text-success h5">0đ</span>
-            </div>
-            <h5 id="q-text" class="fw-bold mb-4" style="line-height:1.6"></h5>
-            <div id="q-options"></div>
+        <div id="user-quiz" class="hidden card-custom">
+            <div class="timer-bar"><div id="inner-bar"></div></div>
+            <div class="d-flex justify-content-between mb-3"><span id="q-idx"></span> <b id="u-score">0đ</b></div>
+            <h5 id="q-text"></h5>
+            <div id="q-opts"></div>
         </div>
     </div>
 </main>
 
-<footer>
-    <div class="footer-info">
-        Developer: <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>84-908-08-3566</b><br>
-        <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
-    </div>
-</footer>
+<div id="spin-overlay" class="hidden">
+    <div id="the-wheel" class="wheel"></div>
+    <h2 class="mt-4 text-warning">BẠN TRẢ LỜI NHANH NHẤT!</h2>
+    <p id="spin-msg"></p>
+    <button id="btn-spin" class="btn btn-light btn-lg fw-bold px-5">QUAY ĐỂ CƯỚP ĐIỂM</button>
+</div>
+
+<div id="announcement" class="position-fixed top-0 start-50 translate-middle-x p-3 hidden" style="z-index:10000">
+    <div class="alert alert-warning shadow-lg fw-bold" id="ann-text"></div>
+</div>
 
 <script>
     const socket = io();
+    let timerInt;
+    let currentVictim = null;
 
-    function selectRole(role) {
+    function selectRole(r) {
         document.getElementById('role-selection').classList.add('hidden');
-        document.getElementById(role + '-ui').classList.remove('hidden');
+        document.getElementById(r + '-ui').classList.remove('hidden');
     }
 
-    // Host upload file
-    document.getElementById('file-input').onchange = function(e) {
+    // Host Logic
+    document.getElementById('file-input').onchange = e => {
         const file = e.target.files[0];
-        if (!file) return;
         const reader = new FileReader();
-        document.getElementById('host-status').classList.remove('hidden');
-        reader.onload = () => socket.emit('host_upload_file', { content: reader.result });
+        reader.onload = () => socket.emit('host_upload_file', {name: file.name, content: reader.result});
         reader.readAsDataURL(file);
     };
 
@@ -153,71 +117,99 @@
         document.getElementById('host-setup').classList.add('hidden');
         document.getElementById('host-lobby').classList.remove('hidden');
         document.getElementById('display-pin').innerText = d.pin;
-        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:200px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">`;
+        document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" width="200">`;
     });
 
-    // Realtime: User join → host thấy tên chờ duyệt
     socket.on('player_waiting', d => {
-        const list = document.getElementById('waiting-list');
-        if (document.getElementById('wait-item-' + d.sid)) return; // tránh trùng
-
-        const item = document.createElement('div');
-        item.id = 'wait-item-' + d.sid;
-        item.className = 'user-item';
-        item.innerHTML = `
-            <span class="fw-bold"><i class="fa fa-user-clock text-danger me-2"></i> ${d.name}</span>
-            <button class="btn btn-sm btn-success fw-bold" onclick="approvePlayer('${d.sid}', '${d.name}', this)">DUYỆT</button>
-        `;
-        list.appendChild(item);
-        document.getElementById('wait-count').innerText = list.children.length;
+        const div = document.createElement('div');
+        div.className = "d-flex justify-content-between border-bottom p-2";
+        div.innerHTML = `<span>${d.name}</span> <button class="btn btn-sm btn-success" onclick="socket.emit('host_approve_player', {sid:'${d.sid}'}); this.parentElement.remove()">Duyệt</button>`;
+        document.getElementById('waiting-list').appendChild(div);
     });
 
-    function approvePlayer(sid, name, btn) {
-        socket.emit('host_approve_player', { sid });
-        btn.parentElement.remove();
-        document.getElementById('wait-count').innerText = document.getElementById('waiting-list').children.length;
-
-        // Thêm vào danh sách đã duyệt
-        const approvedList = document.getElementById('approved-list');
-        const approvedItem = document.createElement('div');
-        approvedItem.className = 'user-item text-success';
-        approvedItem.innerHTML = `<i class="fa fa-check-circle me-2"></i> ${name}`;
-        approvedList.appendChild(approvedItem);
-    }
-
-    function approveAll() {
-        const buttons = document.querySelectorAll('#waiting-list .btn-success');
-        buttons.forEach(btn => btn.click());
-    }
-
-    function startRound() {
-        socket.emit('start_round');
-        document.getElementById('host-lobby').classList.add('hidden');
-        document.getElementById('host-live-monitor').classList.remove('hidden');
-    }
-
-    // User tham gia
+    // User Logic
     function userJoin() {
-        const pin = document.getElementById('user-pin').value.trim();
-        const name = document.getElementById('user-name').value.trim();
-        if (!pin || !name) {
-            alert('Vui lòng nhập đầy đủ MÃ PIN và TÊN!');
-            return;
-        }
-        socket.emit('join_game', { pin, name });
-        document.getElementById('user-login').classList.add('hidden');
-        document.getElementById('user-waiting').classList.remove('hidden');
+        socket.emit('join_game', {pin: document.getElementById('u-pin').value, name: document.getElementById('u-name').value});
     }
 
     socket.on('player_approved', () => {
-        document.getElementById('wait-status-text').innerText = 'ĐÃ ĐƯỢC DUYỆT VÀO PHÒNG!';
-        document.getElementById('wait-status-text').classList.remove('text-primary');
-        document.getElementById('wait-status-text').classList.add('text-success');
+        document.getElementById('user-login').innerHTML = "<h4>ĐÃ ĐƯỢC DUYỆT! CHỜ GIÂY LÁT...</h4>";
     });
 
-    socket.on('error', d => {
-        alert(d.msg || 'Có lỗi xảy ra!');
+    // Game Logic
+    socket.on('new_question', d => {
+        document.getElementById('user-login').classList.add('hidden');
+        document.getElementById('user-quiz').classList.remove('hidden');
+        document.getElementById('host-lobby').classList.add('hidden');
+        document.getElementById('host-monitor').classList.remove('hidden');
+        
+        document.getElementById('q-idx').innerText = `Câu ${d.index}/10`;
+        document.getElementById('q-text').innerText = d.question.q;
+        document.getElementById('mon-q').innerText = d.question.q;
+        
+        const opts = document.getElementById('q-opts');
+        opts.innerHTML = '';
+        ['a','b','c','d'].forEach(o => {
+            const btn = document.createElement('button');
+            btn.className = "btn btn-ans";
+            btn.innerHTML = d.question[o];
+            btn.onclick = () => {
+                socket.emit('submit_answer', {ans: o});
+                Array.from(opts.children).forEach(b => b.disabled = true);
+                btn.style.background = "#d1e7ff";
+            };
+            opts.appendChild(btn);
+        });
+
+        let timeLeft = 30;
+        clearInterval(timerInt);
+        timerInt = setInterval(() => {
+            timeLeft--;
+            document.getElementById('inner-bar').style.width = (timeLeft/30)*100 + "%";
+            if(timeLeft <= 0) clearInterval(timerInt);
+        }, 1000);
     });
+
+    // LUCKY SPIN LOGIC
+    socket.on('trigger_lucky_spin', d => {
+        currentVictim = d.victim_sid;
+        document.getElementById('spin-overlay').classList.remove('hidden');
+        document.getElementById('spin-msg').innerText = `Bạn có cơ hội cướp điểm của ${d.victim_name}`;
+    });
+
+    document.getElementById('btn-spin').onclick = function() {
+        this.disabled = true;
+        const deg = Math.floor(Math.random() * 360) + 1800;
+        document.getElementById('the-wheel').style.transform = `rotate(${deg}deg)`;
+        
+        setTimeout(() => {
+            const percents = [10, 20, 30, 50];
+            const finalPercent = percents[Math.floor(Math.random() * percents.length)];
+            socket.emit('execute_steal', {victim_sid: currentVictim, percent: finalPercent});
+            setTimeout(() => {
+                document.getElementById('spin-overlay').classList.add('hidden');
+                this.disabled = false;
+                document.getElementById('the-wheel').style.transform = `rotate(0deg)`;
+            }, 1500);
+        }, 4500);
+    };
+
+    socket.on('update_leaderboard', list => {
+        const html = list.map((p, i) => `<div class="p-2 border-bottom">#${i+1} ${p.name} - ${p.score}đ</div>`).join('');
+        document.getElementById('lb-display').innerHTML = html;
+        const myName = document.getElementById('u-name').value;
+        const me = list.find(x => x.name === myName);
+        if(me) document.getElementById('u-score').innerText = me.score + "đ";
+    });
+
+    socket.on('game_announcement', d => {
+        const box = document.getElementById('announcement');
+        document.getElementById('ann-text').innerText = d.msg;
+        box.classList.remove('hidden');
+        setTimeout(() => box.classList.add('hidden'), 4000);
+    });
+
+    socket.on('error', d => alert(d.msg));
 </script>
 </body>
 </html>
