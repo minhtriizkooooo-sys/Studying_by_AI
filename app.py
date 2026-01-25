@@ -12,7 +12,7 @@ game_state = {
     "all_questions": [], "current_round_qs": [],
     "players": {}, "player_names": set(), "active_q_idx": -1,
     "start_time": 0, "pin": None, "is_running": False,
-    "current_answers_count": 0, "last_winner_sid": None
+    "current_answers_count": 0
 }
 
 @app.route('/')
@@ -21,7 +21,7 @@ def index(): return render_template('index.html')
 @app.route('/template')
 def download_template():
     df = pd.DataFrame(columns=['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích'])
-    df.loc[0] = ["1+1 bằng mấy?", "1", "2", "3", "4", "2", "Phép tính cơ bản."]
+    df.loc[0] = ["Marie Curie là người nước nào?", "Ba Lan", "Pháp", "Đức", "Anh", "Ba Lan", "Bà sinh ra tại Ba Lan và sau đó sang Pháp làm việc."]
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
     out.seek(0)
@@ -66,6 +66,8 @@ def send_q():
     idx = game_state['active_q_idx']
     if idx >= len(game_state['current_round_qs']):
         game_state['is_running'] = False
+        final_lb = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
+        socketio.emit('game_over', {'results': final_lb})
         socketio.emit('enable_review', broadcast=True)
         return
     game_state['current_answers_count'] = 0
@@ -79,43 +81,22 @@ def handle_sub(data):
     if sid not in game_state['players'] or not game_state['is_running']: return
     p = game_state['players'][sid]
     q = game_state['current_round_qs'][game_state['active_q_idx']]
+    
+    # Logic so khớp đáp án cực chuẩn
+    user_ans = str(data['ans']).strip().lower()
+    correct_ans = str(q['Đáp án đúng']).strip().lower()
+    is_correct = (user_ans == correct_ans)
+    
     elapsed = time.time() - game_state['start_time']
-    
-    # Tính điểm chuẩn
-    is_correct = str(data['ans']).strip() == str(q['Đáp án đúng']).strip()
     pts = max(10, int(100 * (1 - elapsed / 15.0))) if is_correct else 0
-    
-    # Sự kiện ngẫu nhiên cho người nhanh nhất
-    if is_correct and game_state['current_answers_count'] == 0:
-        roll = random.random()
-        if roll < 0.2:
-            bonus = 30
-            pts += bonus
-            socketio.emit('special_event', {'type': 'lucky', 'name': p['name'], 'val': bonus})
     
     p['total'] += pts
     p['last_pts'] = pts
-    p['history'].append({
-        "idx": game_state['active_q_idx'] + 1,
-        "q": q['Câu hỏi'],
-        "u": data['ans'],
-        "c": q['Đáp án đúng'],
-        "pts": pts,
-        "ex": q['Giải thích']
-    })
+    p['history'].append({"idx": game_state['active_q_idx']+1, "q": q['Câu hỏi'], "u": data['ans'], "c": q['Đáp án đúng'], "pts": pts, "ex": q['Giải thích']})
     
-    # Gửi điểm ngay lập tức cho chính user đó
     emit('score_update', {'total': p['total'], 'last': pts, 'correct': is_correct})
-    
     game_state['current_answers_count'] += 1
     update_lb()
-    
-    # Tự động qua câu nếu xong
-    total_approved = sum(1 for pl in game_state['players'].values() if pl['approved'])
-    if game_state['current_answers_count'] >= total_approved:
-        socketio.sleep(1.2)
-        game_state['active_q_idx'] += 1
-        send_q()
 
 @socketio.on('times_up')
 def handle_timeout():
