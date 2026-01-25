@@ -7,7 +7,7 @@ function selectRole(role) {
     if(role === 'host') socket.emit('host_connect');
 }
 
-// ================== HOST LOGIC ==================
+// HOST LOGIC
 document.getElementById('file-input')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     const reader = new FileReader();
@@ -19,7 +19,7 @@ socket.on('qr_ready', d => {
     document.getElementById('host-setup').classList.add('hidden');
     document.getElementById('host-lobby').classList.remove('hidden');
     document.getElementById('display-pin').innerText = d.pin;
-    document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px" class="shadow rounded border">`;
+    document.getElementById('qr-display').innerHTML = `<img src="data:image/png;base64,${d.qr}" style="width:180px">`;
 });
 
 socket.on('player_waiting', d => {
@@ -28,13 +28,13 @@ socket.on('player_waiting', d => {
     const div = document.createElement('div');
     div.id = "wait-" + d.sid;
     div.className = "lb-item";
-    div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success px-3" onclick="approve('${d.sid}')">Duyệt</button>`;
+    div.innerHTML = `<span><b>${d.name}</b></span> <button class="btn btn-sm btn-success" onclick="approve('${d.sid}')">Duyệt</button>`;
     list.appendChild(div);
     document.getElementById('btn-start').disabled = false;
 });
 
 function approve(sid) {
-    socket.emit('host_approve_player', { sid }); // Cần bổ sung event này trong app.py nếu chưa có hoặc dùng approve_all
+    socket.emit('host_approve_player', { sid });
     document.getElementById("wait-" + sid)?.remove();
 }
 
@@ -47,10 +47,9 @@ function startRound() {
     socket.emit('start_round');
     document.getElementById('host-lobby').classList.add('hidden');
     document.getElementById('host-review-screen').classList.add('hidden');
-    document.getElementById('host-live-monitor').classList.remove('hidden');
 }
 
-// ================== USER LOGIC ==================
+// USER LOGIC
 function userJoin() {
     const pin = document.getElementById('user-pin').value;
     const name = document.getElementById('user-name').value;
@@ -61,18 +60,19 @@ function userJoin() {
 }
 
 socket.on('player_approved', () => {
-    document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT! CHỜ GIÁO VIÊN BẮT ĐẦU...";
-    document.getElementById('wait-status-text').classList.add('text-success');
+    document.getElementById('wait-status-text').innerText = "ĐÃ ĐƯỢC DUYỆT! CHỜ GIÁO VIÊN...";
 });
 
-// ================== GAME ENGINE ==================
+// GAME ENGINE
 socket.on('new_question', d => {
+    // TẮT OVERLAY KHI SANG CÂU MỚI
     document.getElementById('event-overlay').classList.add('hidden');
     document.getElementById('user-waiting').classList.add('hidden');
     document.getElementById('user-review-screen').classList.add('hidden');
     document.getElementById('user-quiz-area').classList.remove('hidden');
+    document.getElementById('host-live-monitor')?.classList.remove('hidden');
 
-    // Host Monitor Update
+    // Cập nhật Host Monitor
     const mText = document.getElementById('monitor-q-text');
     if(mText) {
         mText.innerText = d.question.q;
@@ -80,7 +80,7 @@ socket.on('new_question', d => {
             <div class="col-6"><div class="card p-2 border shadow-sm"><b>${o.toUpperCase()}.</b> ${d.question[o]}</div></div>`).join('');
     }
 
-    // User Quiz Update
+    // Cập nhật User Quiz
     document.getElementById('q-idx').innerText = `Câu ${d.index}/${d.total}`;
     document.getElementById('q-text').innerText = d.question.q;
     const opts = document.getElementById('q-options');
@@ -92,7 +92,8 @@ socket.on('new_question', d => {
         btn.onclick = () => {
             socket.emit('submit_answer', { ans: o });
             Array.from(opts.children).forEach(b => b.disabled = true);
-            btn.style.borderColor = "var(--primary)";
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn-ans');
         };
         opts.appendChild(btn);
     });
@@ -113,7 +114,7 @@ function startCountdown(sec) {
     tick(); timerInterval = setInterval(tick, 1000);
 }
 
-// ================== STEAL & SPIN ==================
+// EVENTS
 socket.on('steal_alert', d => {
     const overlay = document.getElementById('event-overlay');
     overlay.classList.remove('hidden');
@@ -128,7 +129,7 @@ socket.on('fastest_notify', d => {
     overlay.classList.remove('hidden');
     document.getElementById('event-content').innerHTML = `
         <div class="event-title text-info">🚀 NHANH NHẤT 🚀</div>
-        <h2>${d.name}</h2><p>Đang chuẩn bị Lucky Spin...</p>`;
+        <h2>${d.name}</h2><p>Chuẩn bị Lucky Spin...</p>`;
 });
 
 socket.on('trigger_lucky_spin', () => {
@@ -136,8 +137,8 @@ socket.on('trigger_lucky_spin', () => {
     overlay.classList.remove('hidden');
     document.getElementById('event-content').innerHTML = `
         <div class="event-title spin-active">🎁 LUCKY SPIN 🎁</div>
-        <div class="spin-wheel-ui mb-4"><h1 id="spin-val">?</h1><small>ĐIỂM THƯỞNG</small></div>
-        <button class="btn btn-warning btn-lg fw-bold px-5" onclick="runSpin(this)">QUAY NGAY</button>`;
+        <div class="spin-wheel-ui mb-4 mx-auto"><h1 id="spin-val">?</h1></div>
+        <button class="btn btn-warning btn-lg fw-bold" onclick="runSpin(this)">QUAY</button>`;
 });
 
 function runSpin(btn) {
@@ -150,19 +151,17 @@ function runSpin(btn) {
         if(count++ > 20) {
             clearInterval(timer);
             socket.emit('claim_spin', { points: res });
-            setTimeout(() => document.getElementById('event-overlay').classList.add('hidden'), 2000);
         }
     }, 100);
 }
 
-// ================== BXH & REVIEW ==================
 socket.on('update_leaderboard', list => {
     const container = document.getElementById('lb-host');
     if(!container) return;
     container.innerHTML = list.map((p, i) => `
-        <div class="lb-item ${i===0?'bg-warning bg-opacity-10':''}">
-            <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)} <b>${p.name}</b></span>
-            <span class="badge bg-primary rounded-pill">${p.score}đ</span>
+        <div class="lb-item">
+            <span>${i+1}. <b>${p.name}</b></span>
+            <span class="badge bg-primary">${p.score}đ</span>
         </div>`).join('');
 });
 
@@ -175,9 +174,9 @@ socket.on('round_review', d => {
     document.getElementById('host-live-monitor').classList.add('hidden');
     document.getElementById('host-review-screen').classList.remove('hidden');
     document.getElementById('host-review-list').innerHTML = d.questions.map((q, i) => `
-        <div class="card p-3 mb-2 shadow-sm border-0 bg-light text-start">
-            <p class="fw-bold mb-1">${i+1}. ${q.q}</p>
-            <p class="text-success small mb-0"><b>Đáp án:</b> ${q.ans} | <b>Giải thích:</b> ${q.exp}</p>
+        <div class="card p-2 mb-2 bg-light">
+            <p class="fw-bold mb-0">${i+1}. ${q.q}</p>
+            <small class="text-success">Đáp án: ${q.ans} | ${q.exp}</small>
         </div>`).join('');
 });
 
@@ -186,9 +185,9 @@ socket.on('personal_review', d => {
     document.getElementById('user-review-screen').classList.remove('hidden');
     document.getElementById('user-review-list').innerHTML = d.history.map((h, i) => `
         <div class="review-item ${h.your_ans === h.correct_ans ? 'correct' : 'wrong'}">
-            <p class="fw-bold mb-1">Câu ${i+1}: ${h.q}</p>
-            <p class="small mb-0">Bạn chọn: ${h.your_ans || 'Bỏ trống'} | Đáp án: <b>${h.correct_ans}</b></p>
-            <p class="text-muted x-small italic mt-1">${h.exp}</p>
+            <p class="fw-bold mb-0">Câu ${i+1}: ${h.q}</p>
+            <p class="small mb-0">Bạn: ${h.your_ans} | Đáp án: ${h.correct_ans}</p>
+            <p class="text-muted x-small">${h.exp}</p>
         </div>`).join('');
 });
 
