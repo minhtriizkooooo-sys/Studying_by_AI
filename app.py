@@ -31,6 +31,19 @@ def generate_qr(data):
     img.save(buf, format='PNG')
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
+# Thêm Event này vào trong app.py
+
+@socketio.on('host_approve_all')
+def approve_all():
+    approved_count = 0
+    for sid, info in game_state['players'].items():
+        if not info['joined']:
+            info['joined'] = True
+            approved_count += 1
+            emit('player_approved', {"name": info['name']}, room=sid)
+    # Thông báo cho host biết đã duyệt xong
+    emit('game_announcement', {'msg': f"Đã duyệt nhanh {approved_count} thí sinh!"}, room=request.sid)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -166,3 +179,4 @@ def update_lb():
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
+
