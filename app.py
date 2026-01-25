@@ -4,7 +4,7 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'marie_curie_final_v7'
+app.config['SECRET_KEY'] = 'marie_curie_2026_final'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
@@ -28,23 +28,28 @@ def index(): return render_template('index.html')
 def handle_upload(data):
     try:
         content = base64.b64decode(data['content'].split(",")[1])
+        # Đọc file CSV/Excel hỗ trợ tiếng Việt
         df = pd.read_csv(io.BytesIO(content))
         game_state['all_questions'] = df.to_dict('records')
         game_state['pin'] = str(random.randint(100000, 999999))
         
+        # Tạo QR Code
         qr = qrcode.make(game_state['pin'])
         buf = io.BytesIO()
         qr.save(buf, format='PNG')
-        emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
-    except:
-        emit('error', {'msg': "Lỗi đọc file Excel/CSV!"})
+        emit('qr_ready', {
+            'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 
+            'pin': game_state['pin']
+        })
+    except Exception as e:
+        emit('error', {'msg': "Lỗi: File phải có các cột: Câu hỏi, Đáp án A, Đáp án B, Đáp án C, Đáp án D, Đáp án đúng, Giải thích"})
 
 @socketio.on('join_request')
 def join_request(data):
     if data.get('pin') == game_state['pin']:
         sid = request.sid
         game_state['players'][sid] = {"name": data['name'], "score": 0, "approved": False, "history": []}
-        # Gửi thông tin người chờ duyệt tới Host
+        # Gửi đến Host để duyệt
         emit('new_player_waiting', {'name': data['name'], 'sid': sid}, broadcast=True)
 
 @socketio.on('approve_player')
@@ -66,7 +71,7 @@ def approve_all():
 def start_round():
     game_state['current_round_num'] += 1
     avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_q_indices']]
-    if len(avail) < 10: return emit('error', {'msg': "Hết câu hỏi!"})
+    if len(avail) < 10: return emit('error', {'msg': "Không đủ câu hỏi mới!"})
     
     selected = random.sample(avail, 10)
     game_state['used_q_indices'].update(selected)
@@ -94,16 +99,16 @@ def process_end_q():
         fastest = min(correct_p, key=lambda x: correct_p[x]['time'])
         # Lucky Spin
         if fastest == game_state['top_player_sid']:
-            bonus = random.randint(50, 150)
+            bonus = random.randint(50, 200)
             game_state['players'][fastest]['score'] += bonus
-            emit('event_msg', {'msg': f"🌟 {game_state['players'][fastest]['name']} DUY TRÌ PHONG ĐỘ: +{bonus}đ!"}, broadcast=True)
+            emit('event_msg', {'msg': f"🌟 LUCKY SPIN: {game_state['players'][fastest]['name']} +{bonus}đ!"}, broadcast=True)
         # Mark Steal
         elif game_state['top_player_sid'] and fastest != game_state['top_player_sid']:
             victim = game_state['top_player_sid']
             stolen = int(game_state['players'][victim]['score'] * 0.15)
             game_state['players'][victim]['score'] -= stolen
             game_state['players'][fastest]['score'] += stolen
-            emit('event_msg', {'msg': f"⚡ {game_state['players'][fastest]['name']} CƯỚP {stolen}đ TỪ {game_state['players'][victim]['name']}!"}, broadcast=True)
+            emit('event_msg', {'msg': f"⚡ MARK STEAL: {game_state['players'][fastest]['name']} cướp {stolen}đ từ {game_state['players'][victim]['name']}!"}, broadcast=True)
 
     if game_state['players']:
         game_state['top_player_sid'] = max(game_state['players'], key=lambda x: game_state['players'][x]['score'])
@@ -126,7 +131,7 @@ def handle_sub(data):
     if sid in game_state['current_answers']: return
     elapsed = time.time() - game_state['start_time']
     q = game_state['current_round_qs'][game_state['active_q_idx']]
-    correct = data['ans'] == q['Đáp án đúng']
+    correct = (data['ans'] == q['Đáp án đúng'])
     
     game_state['players'][sid]['history'].append({"q": q['Câu hỏi'], "u": data['ans'], "c": q['Đáp án đúng'], "ex": q['Giải thích']})
     game_state['current_answers'][sid] = {"correct": correct, "time": elapsed}
