@@ -15,9 +15,18 @@
         .orange-text { color: var(--orange) !important; font-weight: bold; }
         .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
         .timer-circle { font-size: 3rem; font-weight: 800; color: var(--orange); }
-        .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; }
+        .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; transition: 0.2s; }
+        .btn-ans:hover:not(:disabled) { border-color: var(--navy); background: #f8f9fa; }
         .hidden { display: none !important; }
         .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        
+        /* Podium for Host */
+        .podium { display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin: 30px 0; }
+        .podium-item { text-align: center; width: 100px; padding: 10px; border-radius: 10px 10px 0 0; color: white; font-weight: bold; position: relative; }
+        .rank-1 { height: 120px; background: #FFD700; order: 2; }
+        .rank-2 { height: 90px; background: #C0C0C0; order: 1; }
+        .rank-3 { height: 70px; background: #CD7F32; order: 3; }
+        .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -30,33 +39,48 @@
 <main class="container">
     <div id="role-select" class="text-center py-5">
         <div class="dash-card d-inline-block px-5">
-            <h2 class="mb-4">Hệ thống Trắc nghiệm</h2>
+            <h2 class="mb-4 text-navy">Hệ thống Trắc nghiệm AI</h2>
             <button class="btn btn-dark btn-lg px-5 me-2" onclick="init('host')">BẢN HOST</button>
             <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">BẢN USER</button>
         </div>
     </div>
 
     <div id="host-area" class="hidden">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="dash-card">
-                    <a href="/template" class="btn btn-outline-primary btn-sm w-100 mb-3">TẢI FILE MẪU EXCEL</a>
-                    <input type="file" id="csv-file" class="form-control mb-3">
-                    <div id="qr-display" class="hidden text-center">
-                        <img id="qr-img" class="mb-2 shadow" style="width:140px;">
-                        <h1 id="pin-val" class="text-primary fw-bold"></h1>
-                        <div id="wait-box" class="mt-2 text-start bg-light p-2 rounded" style="max-height:150px; overflow-y:auto;"></div>
-                        <button class="btn btn-success w-100 mt-2" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
+        <div id="host-live-ui">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="dash-card">
+                        <a href="/template" class="btn btn-outline-primary btn-sm w-100 mb-3">TẢI FILE MẪU EXCEL</a>
+                        <input type="file" id="csv-file" class="form-control mb-3">
+                        <div id="qr-display" class="hidden text-center">
+                            <img id="qr-img" class="mb-2 shadow" style="width:140px;">
+                            <h1 id="pin-val" class="text-primary fw-bold"></h1>
+                            <div id="wait-box" class="mt-2 text-start bg-light p-2 rounded" style="max-height:150px; overflow-y:auto;"></div>
+                            <button class="btn btn-success w-100 mt-2" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
+                        </div>
                     </div>
+                    <button id="start-btn" class="btn btn-danger btn-lg w-100 mb-3 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG THI</button>
                 </div>
-                <button class="btn btn-danger btn-lg w-100 mb-3 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG THI</button>
+                <div class="col-md-8">
+                    <div class="dash-card text-center">
+                        <div class="timer-circle"><span id="host-clock">15.0</span>s</div>
+                        <div id="host-q-content" class="mt-3"><h5>Đang chờ dữ liệu...</h5></div>
+                    </div>
+                    <div class="dash-card"><h6>BẢNG XẾP HẠNG REALTIME</h6><div id="host-lb"></div></div>
+                </div>
             </div>
-            <div class="col-md-8">
-                <div class="dash-card text-center">
-                    <div class="timer-circle"><span id="host-clock">15.0</span>/15.0s</div>
-                    <div id="host-q-content" class="mt-3"><h5>Đang chờ...</h5></div>
+        </div>
+
+        <div id="host-end-ui" class="hidden text-center">
+            <div class="dash-card">
+                <h1 class="orange-text">🎉 KẾT THÚC 🎉</h1>
+                <div class="podium">
+                    <div class="podium-item rank-2"><div id="name-2" class="winner-name">-</div>🥈 2nd</div>
+                    <div class="podium-item rank-1"><div id="name-1" class="winner-name">-</div>🥇 1st</div>
+                    <div class="podium-item rank-3"><div id="name-3" class="winner-name">-</div>🥉 3rd</div>
                 </div>
-                <div class="dash-card"><h6>BẢNG XẾP HẠNG REALTIME</h6><div id="host-lb"></div></div>
+                <div id="final-stats-list" class="text-start mx-auto mt-4" style="max-width: 400px;"></div>
+                <button class="btn btn-primary mt-3" onclick="location.reload()">LÀM MỚI</button>
             </div>
         </div>
     </div>
@@ -72,7 +96,7 @@
             <div class="row">
                 <div class="col-md-8">
                     <div class="dash-card text-center">
-                        <div class="timer-circle"><span id="clock">15.0</span>/15.0s</div>
+                        <div class="timer-circle"><span id="clock">15.0</span>s</div>
                         <h5 id="q-meta" class="text-muted mt-2 fw-bold"></h5>
                         <h2 id="q-body" class="fw-bold my-4"></h2>
                         <div id="ans-list"></div>
@@ -80,8 +104,8 @@
                 </div>
                 <div class="col-md-4">
                     <div class="dash-card text-center">
-                        <h5>TỔNG ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
-                        <div id="last-pts-gain" class="small fw-bold"></div>
+                        <h5>ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
+                        <div id="last-pts-gain" class="fw-bold mt-2"></div>
                         <hr>
                         <div id="user-lb" class="text-start small"></div>
                     </div>
@@ -118,15 +142,7 @@
         socket.emit('join_request', {name: myName, pin: pin});
     }
 
-    socket.on('join_received', () => {
-        document.getElementById('user-login').innerHTML = `<div class="text-center py-4"><h4>Chào <b>${myName}</b></h4><p>Chờ host duyệt...</p><div class="spinner-border text-primary"></div></div>`;
-    });
-
-    socket.on('approved_success', () => {
-        document.getElementById('user-login').classList.add('hidden');
-        document.getElementById('user-quiz').classList.remove('hidden');
-    });
-
+    // Lời chào Marie Curie
     socket.on('join_received', () => {
         const loginBox = document.getElementById('user-login');
         loginBox.innerHTML = `
@@ -136,6 +152,11 @@
                 <p class="mt-3 text-muted">Yêu cầu đã gửi! Đang chờ host duyệt...</p>
                 <div class="spinner-border text-primary mt-2"></div>
             </div>`;
+    });
+
+    socket.on('approved_success', () => {
+        document.getElementById('user-login').classList.add('hidden');
+        document.getElementById('user-quiz').classList.remove('hidden');
     });
 
     socket.on('new_q', d => {
@@ -155,19 +176,27 @@
                 box.appendChild(btn);
             });
         } else {
+            document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('host-q-content').innerHTML = `<h4>CÂU ${d.idx}/${d.total}</h4><h2 class="fw-bold">${d.q['Câu hỏi']}</h2>`;
         }
         startCountdown();
     });
 
-    // Cập nhật điểm tức thì khi vừa chọn đáp án
     socket.on('score_update', d => {
         document.getElementById('my-pts').innerText = d.total;
         const gainBox = document.getElementById('last-pts-gain');
-        if(d.correct) {
-            gainBox.innerHTML = `<span class="text-success">CHÍNH XÁC! +${d.last}đ</span>`;
-        } else {
-            gainBox.innerHTML = `<span class="text-danger">SAI RỒI! +0đ</span>`;
+        gainBox.innerHTML = d.correct ? `<span class="text-success">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger">SAI RỒI! +0đ</span>`;
+    });
+
+    socket.on('game_over', d => {
+        if(myRole === 'host') {
+            document.getElementById('host-live-ui').classList.add('hidden');
+            document.getElementById('host-end-ui').classList.remove('hidden');
+            const res = d.results;
+            if(res[0]) document.getElementById('name-1').innerText = res[0].name;
+            if(res[1]) document.getElementById('name-2').innerText = res[1].name;
+            if(res[2]) document.getElementById('name-3').innerText = res[2].name;
+            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
         }
     });
 
@@ -184,8 +213,8 @@
 
     socket.on('lb_update', d => {
         const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><b>${p.total}</b></div>`).join('');
-        document.getElementById('host-lb').innerHTML = html;
-        document.getElementById('user-lb').innerHTML = html;
+        if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
+        if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
     });
 
     socket.on('enable_review', () => { if(myRole==='user') document.getElementById('review-btn').classList.remove('hidden'); });
@@ -201,7 +230,7 @@
             <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
                 <div class="d-flex justify-content-between">
                     <h5>Câu ${it.idx}: ${it.q}</h5>
-                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'}">+${it.pts} điểm</span>
+                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'}">+${it.pts}đ</span>
                 </div>
                 <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
                 <p class="mb-2">Đáp án đúng: <b class="text-success">${it.c}</b></p>
@@ -214,10 +243,17 @@
         reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
         reader.readAsDataURL(e.target.files[0]);
     };
+
     socket.on('qr_ready', d => {
         document.getElementById('qr-display').classList.remove('hidden');
         document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
         document.getElementById('pin-val').innerText = d.pin;
+    });
+
+    socket.on('new_player_waiting', d => {
+        const div = document.createElement('div'); div.className = "lb-item";
+        div.innerHTML = `<span>${d.name}</span> <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_all')">Duyệt</button>`;
+        document.getElementById('wait-box').appendChild(div);
     });
 </script>
 </body>
