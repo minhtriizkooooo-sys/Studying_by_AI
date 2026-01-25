@@ -14,6 +14,7 @@ from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026_full_version'
+# Khởi tạo SocketIO với gevent để hỗ trợ chạy nền và sleep
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # ==========================================================
@@ -23,7 +24,7 @@ game_state = {
     "all_questions": [],       
     "current_round_qs": [],    
     "used_q_indices": set(),   
-    "players": {},             # {sid: {name, score, round_score, joined, answers: {}}}
+    "players": {},             # {sid: {name, score, joined, answers: {}}}
     "host_sid": None,          
     "is_started": False,
     "current_round": 1,        
@@ -35,7 +36,7 @@ game_state = {
     "correct_responses": {},   # {sid: elapsed_time}
     "question_timer": None,    
     "max_time_per_question": 15,
-    "is_processing_transition": False # Flag kiểm soát chuyển câu
+    "is_processing_transition": False # Flag kiểm soát tránh chuyển câu trùng lặp
 }
 
 # ==========================================================
@@ -51,14 +52,13 @@ def generate_qr(data):
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
 def prepare_round_questions():
-    """Lấy đúng 10 câu hỏi cho mỗi vòng"""
+    """Lấy đúng 10 câu hỏi ngẫu nhiên cho mỗi vòng"""
     available_indices = [i for i in range(len(game_state['all_questions'])) 
                          if i not in game_state['used_q_indices']]
     
-    # Nếu không đủ 10 câu mới, reset lại danh sách đã dùng
     if len(available_indices) < 10:
         game_state['used_q_indices'] = set()
-        available_indices = [i for i in range(len(game_state['all_questions']))]
+        available_indices = list(range(len(game_state['all_questions'])))
     
     if not available_indices: return False
 
@@ -68,7 +68,7 @@ def prepare_round_questions():
     return True
 
 def auto_next_question():
-    """Gọi khi hết 15 giây"""
+    """Hàm callback khi hết 15 giây"""
     process_bonus_and_next()
 
 def process_bonus_and_next():
@@ -77,7 +77,7 @@ def process_bonus_and_next():
         return
     game_state['is_processing_transition'] = True
 
-    # Hủy đếm ngược 15s của câu hiện tại
+    # Hủy đếm ngược của câu hiện tại
     if game_state['question_timer']:
         game_state['question_timer'].cancel()
         game_state['question_timer'] = None
@@ -86,24 +86,19 @@ def process_bonus_and_next():
     idx = game_state['active_question_index']
     correct_ans = game_state['current_round_qs'][idx]['ans']
 
-    # Thời gian chờ hiệu ứng trước khi sang câu mới
-    transition_delay = 2 
+    transition_delay = 3 # Thời gian chờ mặc định (giây)
 
-    # Logic Thưởng/Phạt
+    # Nếu có người trả lời đúng
     if game_state['correct_responses'] and len(lb) > 0:
         sorted_correct = sorted(game_state['correct_responses'].items(), key=lambda x: x[1])
         fastest_sid = sorted_correct[0][0]
         fastest_name = game_state['players'][fastest_sid]['name']
         
-        top_player_sid = None
-        for sid, pdata in game_state['players'].items():
-            if pdata['name'] == lb[0]['name']:
-                top_player_sid = sid
-                break
-
-        top_ans = game_state['players'][top_player_sid]['answers'].get(idx)
+        # Tìm SID của người đang đứng đầu BXH
+        top_player_sid = next((sid for sid, p in game_state['players'].items() if p['name'] == lb[0]['name']), None)
+        top_ans = game_state['players'][top_player_sid]['answers'].get(idx) if top_player_sid else None
         
-        # CƯỚP ĐIỂM
+        # LOGIC CƯỚP ĐIỂM: Nếu top 1 sai và có người nhanh nhất đúng
         if top_ans != correct_ans and fastest_sid != top_player_sid:
             victim_score = game_state['players'][top_player_sid]['score']
             steal_amount = int(victim_score * 0.1)
@@ -111,16 +106,16 @@ def process_bonus_and_next():
                 game_state['players'][top_player_sid]['score'] -= steal_amount
                 game_state['players'][fastest_sid]['score'] += steal_amount
                 emit('steal_alert', {'thief': fastest_name, 'victim': lb[0]['name'], 'points': steal_amount}, room=game_state['room_id'])
-                transition_delay = 5
-        # LUCKY SPIN
+                transition_delay = 6 # Chờ lâu hơn để hiện hiệu ứng cướp
+        # LOGIC LUCKY SPIN: Nếu top 1 đúng hoặc người nhanh nhất chính là top 1
         else:
-            emit('trigger_lucky_spin', room=fastest_sid)
             emit('fastest_notify', {'name': fastest_name}, room=game_state['room_id'])
-            transition_delay = 8 # Cho thêm thời gian quay spin
+            emit('trigger_lucky_spin', room=fastest_sid)
+            transition_delay = 10 # Chờ để người dùng thực hiện Spin
 
     update_lb()
     
-    # Chờ xem hiệu ứng rồi mới nhảy câu
+    # Treo luồng xử lý để chờ hiệu ứng trên Client
     socketio.sleep(transition_delay)
     
     game_state['active_question_index'] += 1
@@ -129,28 +124,27 @@ def process_bonus_and_next():
 
 def send_question_logic():
     idx = game_state['active_question_index']
-    # Giới hạn 10 câu mỗi vòng
     if idx < 10 and idx < len(game_state['current_round_qs']):
         q = game_state['current_round_qs'][idx]
         payload = {
             'question': {'q': q['q'], 'a': q['a'], 'b': q['b'], 'c': q['c'], 'd': q['d']},
             'index': idx + 1,
             'total': 10,
-            'timer': game_state['max_time_per_question'],
+            'timer': 15,
             'round': game_state['current_round']
         }
         game_state['start_time'] = time.time()
         game_state['answered_players'] = set()
         game_state['correct_responses'] = {}
-        emit('new_question', payload, room=game_state['room_id'])
         
-        game_state['question_timer'] = socketio.call_later(game_state['max_time_per_question'], auto_next_question)
+        emit('new_question', payload, room=game_state['room_id'])
+        # Đặt lịch tự động chuyển câu sau 15s
+        game_state['question_timer'] = socketio.call_later(15, auto_next_question)
     else:
-        # KẾT THÚC VÒNG 10 CÂU
         finish_round_logic()
 
 def finish_round_logic():
-    lb_final = update_lb()
+    update_lb()
     review_for_host = []
     for i, q in enumerate(game_state['current_round_qs']):
         stats = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'correct_list': [], 'wrong_list': []}
@@ -164,9 +158,8 @@ def finish_round_logic():
 
     for sid, player in game_state['players'].items():
         if not player.get('joined'): continue
-        history = []
-        for i, q in enumerate(game_state['current_round_qs']):
-            history.append({'q': q['q'], 'correct_ans': q['ans'], 'your_ans': player['answers'].get(i), 'exp': q.get('exp', '...')})
+        history = [{'q': q['q'], 'correct_ans': q['ans'], 'your_ans': player['answers'].get(i), 'exp': q.get('exp', '')} 
+                   for i, q in enumerate(game_state['current_round_qs'])]
         emit('personal_review', {'history': history, 'total_score': player['score']}, room=sid)
 
     emit('round_review', {'questions': review_for_host}, room=game_state['host_sid'])
@@ -223,11 +216,18 @@ def join_game(data):
         emit('player_waiting', {'name': data['name'], 'sid': request.sid}, room=game_state['host_sid'])
     else: emit('error', {'msg': "PIN sai!"})
 
+@socketio.on('host_approve_player')
+def approve_one(data):
+    sid = data.get('sid')
+    if sid in game_state['players']:
+        game_state['players'][sid]['joined'] = True
+        emit('player_approved', room=sid)
+
 @socketio.on('host_approve_all')
 def approve_all():
     for sid in game_state['players']:
         game_state['players'][sid]['joined'] = True
-        emit('player_approved', {'status': 'ready'}, room=sid)
+        emit('player_approved', room=sid)
 
 @socketio.on('start_round')
 def start_round():
@@ -253,9 +253,10 @@ def handle_ans(data):
             
         update_lb()
         
-        # TỰ ĐỘNG CHUYỂN CÂU: Kiểm tra số người đã trả lời so với số người đã JOIN
+        # CHUYỂN CÂU TỰ ĐỘNG KHI MỌI NGƯỜI ĐÃ TRẢ LỜI XONG
         joined_count = len([s for s, p in game_state['players'].items() if p.get('joined')])
         if len(game_state['answered_players']) >= joined_count:
+            # Chạy logic chuyển câu trong một thread riêng để không block Socket
             socketio.start_background_task(process_bonus_and_next)
 
 @socketio.on('claim_spin')
