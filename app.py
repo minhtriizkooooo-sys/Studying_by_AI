@@ -1,46 +1,44 @@
 from gevent import monkey
-monkey.patch_all()  # PHẢI ĐỂ ĐẦU TIÊN ĐỂ CHẠY TRÊN RENDER
+monkey.patch_all()  # PHẢI ĐỂ ĐẦU TIÊN
 
 import os
 import random
 import qrcode
 import io
 import base64
-import json
-import time
 import pandas as pd
+import time
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026_full_version'
-# Khởi tạo SocketIO với gevent để hỗ trợ chạy nền và sleep
+app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026_trongdeptrai'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # ==========================================================
-# TRẠNG THÁI HỆ THỐNG (GAME STATE)
+# TRẠNG THÁI GAME
 # ==========================================================
 game_state = {
-    "all_questions": [],       
-    "current_round_qs": [],    
-    "used_q_indices": set(),   
-    "players": {},             # {sid: {name, score, joined, answers: {}}}
-    "host_sid": None,          
+    "all_questions": [],
+    "current_round_qs": [],
+    "used_q_indices": set(),
+    "players": {},  # sid: {name, score, joined, answers:{}}
+    "host_sid": None,
     "is_started": False,
-    "current_round": 1,        
-    "pin": None,               
-    "room_id": "main_room",
+    "current_round": 1,
+    "pin": None,
+    "room_id": "quiz_room_2026",
     "active_question_index": 0,
     "start_time": 0,
     "answered_players": set(),
-    "correct_responses": {},   # {sid: elapsed_time}
-    "question_timer": None,    
+    "correct_responses": {},  # sid: elapsed_time
+    "question_timer": None,
     "max_time_per_question": 15,
-    "is_processing_transition": False # Flag kiểm soát tránh chuyển câu trùng lặp
+    "is_processing": False
 }
 
 # ==========================================================
-# CÁC HÀM HỖ TRỢ (UTILITIES)
+# UTILITIES
 # ==========================================================
 def generate_pin():
     return str(random.randint(100000, 999999))
@@ -52,135 +50,140 @@ def generate_qr(data):
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
 def prepare_round_questions():
-    """Lấy đúng 10 câu hỏi ngẫu nhiên cho mỗi vòng"""
-    available_indices = [i for i in range(len(game_state['all_questions'])) 
-                         if i not in game_state['used_q_indices']]
-    
-    if len(available_indices) < 10:
-        game_state['used_q_indices'] = set()
-        available_indices = list(range(len(game_state['all_questions'])))
-    
-    if not available_indices: return False
-
-    selected_indices = random.sample(available_indices, min(10, len(available_indices)))
-    game_state['used_q_indices'].update(selected_indices)
-    game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected_indices]
+    available = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_q_indices']]
+    if len(available) < 10:
+        game_state['used_q_indices'].clear()
+        available = list(range(len(game_state['all_questions'])))
+    if not available:
+        return False
+    selected = random.sample(available, 10)
+    game_state['used_q_indices'].update(selected)
+    game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected]
     return True
 
-def auto_next_question():
-    """Hàm callback khi hết 15 giây"""
-    process_bonus_and_next()
+def update_leaderboard():
+    joined = {sid: p for sid, p in game_state['players'].items() if p.get('joined')}
+    lb = sorted([{"name": p['name'], "score": p['score']} for p in joined.values()], key=lambda x: x['score'], reverse=True)
+    
+    if game_state['host_sid']:
+        emit('update_leaderboard', lb, room=game_state['host_sid'])
+    
+    for sid, player in joined.items():
+        rank = next((i+1 for i, item in enumerate(lb) if item['name'] == player['name']), None)
+        emit('personal_score', {'score': player['score'], 'rank': rank or 0}, room=sid)
+    
+    return lb
 
-def process_bonus_and_next():
-    """XỬ LÝ LOGIC CƯỚP ĐIỂM / LUCKY SPIN VÀ CHUYỂN CÂU"""
-    if game_state['is_processing_transition']:
+def process_transition():
+    if game_state['is_processing']:
         return
-    game_state['is_processing_transition'] = True
+    game_state['is_processing'] = True
 
-    # Hủy đếm ngược của câu hiện tại
     if game_state['question_timer']:
         game_state['question_timer'].cancel()
         game_state['question_timer'] = None
 
-    lb = update_lb() 
+    lb = update_leaderboard()
     idx = game_state['active_question_index']
     correct_ans = game_state['current_round_qs'][idx]['ans']
+    delay = 3
 
-    transition_delay = 3 # Thời gian chờ mặc định (giây)
-
-    # Nếu có người trả lời đúng
-    if game_state['correct_responses'] and len(lb) > 0:
+    if game_state['correct_responses']:
         sorted_correct = sorted(game_state['correct_responses'].items(), key=lambda x: x[1])
         fastest_sid = sorted_correct[0][0]
         fastest_name = game_state['players'][fastest_sid]['name']
-        
-        # Tìm SID của người đang đứng đầu BXH
-        top_player_sid = next((sid for sid, p in game_state['players'].items() if p['name'] == lb[0]['name']), None)
-        top_ans = game_state['players'][top_player_sid]['answers'].get(idx) if top_player_sid else None
-        
-        # LOGIC CƯỚP ĐIỂM: Nếu top 1 sai và có người nhanh nhất đúng
-        if top_ans != correct_ans and fastest_sid != top_player_sid:
-            victim_score = game_state['players'][top_player_sid]['score']
-            steal_amount = int(victim_score * 0.1)
-            if steal_amount > 0:
-                game_state['players'][top_player_sid]['score'] -= steal_amount
-                game_state['players'][fastest_sid]['score'] += steal_amount
-                emit('steal_alert', {'thief': fastest_name, 'victim': lb[0]['name'], 'points': steal_amount}, room=game_state['room_id'])
-                transition_delay = 6 # Chờ lâu hơn để hiện hiệu ứng cướp
-        # LOGIC LUCKY SPIN: Nếu top 1 đúng hoặc người nhanh nhất chính là top 1
+
+        # Top 1 hiện tại
+        top_player = lb[0] if lb else None
+        top_sid = next((sid for sid, p in game_state['players'].items() if p['name'] == top_player['name']), None) if top_player else None
+        top_ans = game_state['players'][top_sid]['answers'].get(idx) if top_sid else None
+
+        if top_player and top_ans != correct_ans and fastest_sid != top_sid:
+            # CƯỚP ĐIỂM
+            steal_amount = max(50, int(game_state['players'][top_sid]['score'] * 0.1))
+            game_state['players'][top_sid]['score'] -= steal_amount
+            game_state['players'][fastest_sid]['score'] += steal_amount
+            emit('steal_alert', {'thief': fastest_name, 'victim': top_player['name'], 'points': steal_amount}, room=game_state['room_id'])
+            delay = 6
         else:
+            # LUCKY SPIN CHO NGƯỜI NHANH NHẤT
             emit('fastest_notify', {'name': fastest_name}, room=game_state['room_id'])
             emit('trigger_lucky_spin', room=fastest_sid)
-            transition_delay = 10 # Chờ để người dùng thực hiện Spin
+            delay = 11  # chờ spin xong
 
-    update_lb()
-    
-    # Treo luồng xử lý để chờ hiệu ứng trên Client
-    socketio.sleep(transition_delay)
-    
+    update_leaderboard()
+    socketio.sleep(delay)
+
     game_state['active_question_index'] += 1
-    game_state['is_processing_transition'] = False
-    send_question_logic()
+    game_state['is_processing'] = False
+    send_next_question()
 
-def send_question_logic():
+def send_next_question():
     idx = game_state['active_question_index']
-    if idx < 10 and idx < len(game_state['current_round_qs']):
-        q = game_state['current_round_qs'][idx]
-        payload = {
-            'question': {'q': q['q'], 'a': q['a'], 'b': q['b'], 'c': q['c'], 'd': q['d']},
-            'index': idx + 1,
-            'total': 10,
-            'timer': 15,
-            'round': game_state['current_round']
-        }
-        game_state['start_time'] = time.time()
-        game_state['answered_players'] = set()
-        game_state['correct_responses'] = {}
-        
-        emit('new_question', payload, room=game_state['room_id'])
-        # Đặt lịch tự động chuyển câu sau 15s
-        game_state['question_timer'] = socketio.call_later(15, auto_next_question)
-    else:
-        finish_round_logic()
+    if idx >= 10:
+        end_round()
+        return
 
-def finish_round_logic():
-    update_lb()
+    q = game_state['current_round_qs'][idx]
+    payload = {
+        'question': {'q': q['q'], 'a': q['a'], 'b': q['b'], 'c': q['c'], 'd': q['d'], 'ans': q['ans']},
+        'index': idx + 1,
+        'total': 10,
+        'timer': 15,
+        'round': game_state['current_round']
+    }
+
+    game_state['start_time'] = time.time()
+    game_state['answered_players'] = set()
+    game_state['correct_responses'] = {}
+
+    emit('new_question', payload, room=game_state['room_id'])
+    game_state['question_timer'] = socketio.call_later(15, process_transition)
+
+def end_round():
     review_for_host = []
     for i, q in enumerate(game_state['current_round_qs']):
-        stats = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'correct_list': [], 'wrong_list': []}
-        for p_sid, p_data in game_state['players'].items():
-            if not p_data.get('joined'): continue
-            p_ans = p_data['answers'].get(i)
-            if p_ans == q['ans']: stats['correct_list'].append(p_data['name'])
-            else: stats['wrong_list'].append(p_data['name'])
-            if p_ans in stats: stats[p_ans] += 1
-        review_for_host.append({'q': q['q'], 'ans': q['ans'], 'exp': q.get('exp', ''), 'stats': stats})
+        stats = {'A':0,'B':0,'C':0,'D':0, 'correct':[], 'wrong':[]}
+        for sid, p in game_state['players'].items():
+            if not p.get('joined'): continue
+            ans = p['answers'].get(i)
+            if ans == q['ans']:
+                stats['correct'].append(p['name'])
+            else:
+                stats['wrong'].append(p['name'])
+            if ans: stats[ans] += 1
+        review_for_host.append({
+            'q': q['q'], 'ans': q['ans'], 'exp': q.get('exp', 'Không có giải thích.'),
+            'stats': stats
+        })
 
-    for sid, player in game_state['players'].items():
-        if not player.get('joined'): continue
-        history = [{'q': q['q'], 'correct_ans': q['ans'], 'your_ans': player['answers'].get(i), 'exp': q.get('exp', '')} 
-                   for i, q in enumerate(game_state['current_round_qs'])]
-        emit('personal_review', {'history': history, 'total_score': player['score']}, room=sid)
+    # Gửi review cho user
+    for sid, p in game_state['players'].items():
+        if not p.get('joined'): continue
+        history = []
+        for i, q in enumerate(game_state['current_round_qs']):
+            your_ans = p['answers'].get(i, '-')
+            history.append({
+                'q': q['q'],
+                'your_ans': your_ans,
+                'correct_ans': q['ans'],
+                'exp': q.get('exp', ''),
+                'is_correct': your_ans == q['ans']
+            })
+        emit('personal_review', {'history': history, 'total_score': p['score']}, room=sid)
 
     emit('round_review', {'questions': review_for_host}, room=game_state['host_sid'])
-    emit('round_ended', {'round': game_state['current_round']}, broadcast=True)
+    emit('round_ended', {'round': game_state['current_round'], 'top3': update_leaderboard()[:3]}, broadcast=True)
+    
     game_state['current_round'] += 1
     game_state['is_started'] = False
 
-def update_lb():
-    joined_players = {sid: p for sid, p in game_state['players'].items() if p.get('joined')}
-    lb = sorted([{"name": v['name'], "score": v['score']} for v in joined_players.values()], 
-                key=lambda x: x['score'], reverse=True)
-    if game_state['host_sid']:
-        emit('update_leaderboard', lb, room=game_state['host_sid'])
-    for sid, player in joined_players.items():
-        rank = next((i+1 for i, p in enumerate(lb) if p['name'] == player['name']), None)
-        emit('personal_score', {'score': player['score'], 'rank': rank, 'name': player['name']}, room=sid)
-    return lb
-
-# --- SOCKET EVENTS ---
+# ==========================================================
+# ROUTES & SOCKET EVENTS
+# ==========================================================
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @socketio.on('host_connect')
 def host_connect():
@@ -188,83 +191,94 @@ def host_connect():
     join_room(game_state['room_id'])
 
 @socketio.on('host_upload_file')
-def handle_upload(data):
+def upload_file(data):
     try:
-        _, content_string = data['content'].split(',')
-        decoded = base64.b64decode(content_string)
-        df = pd.read_excel(io.BytesIO(decoded), engine='openpyxl')
-        if "câu" in str(df.iloc[0,0]).lower(): df = df.iloc[1:]
+        _, b64 = data['content'].split(',', 1)
+        df = pd.read_excel(io.BytesIO(base64.b64decode(b64)), engine='openpyxl')
+        if "câu" in str(df.iloc[0,0]).lower():
+            df = df.iloc[1:]
         qs = []
         for _, row in df.iterrows():
             if pd.isna(row.iloc[0]): continue
             qs.append({
-                "q": str(row.iloc[0]), "a": str(row.iloc[1]), "b": str(row.iloc[2]), 
-                "c": str(row.iloc[3]), "d": str(row.iloc[4]), "ans": str(row.iloc[5]).strip().upper(),
-                "exp": str(row.iloc[6]) if len(row) > 6 else "Không có giải thích chi tiết."
+                "q": str(row.iloc[0]).strip(),
+                "a": str(row.iloc[1]), "b": str(row.iloc[2]), "c": str(row.iloc[3]), "d": str(row.iloc[4]),
+                "ans": str(row.iloc[5]).strip().upper(),
+                "exp": str(row.iloc[6]) if len(row) > 6 and not pd.isna(row.iloc[6]) else "Không có giải thích."
             })
         game_state['all_questions'] = qs
         game_state['pin'] = generate_pin()
-        qr_code = generate_qr(f"{request.host_url}?pin={game_state['pin']}")
-        emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, room=game_state['host_sid'])
-    except Exception as e: emit('error', {'msg': str(e)})
+        qr = generate_qr(f"{request.host_url}?pin={game_state['pin']}")
+        emit('qr_ready', {'qr': qr, 'pin': game_state['pin']})
+    except Exception as e:
+        emit('error', {'msg': f"Lỗi file: {str(e)}"})
 
 @socketio.on('join_game')
-def join_game(data):
+def join(data):
     if str(data.get('pin')) == game_state['pin']:
-        game_state['players'][request.sid] = {"name": data['name'], "score": 0, "joined": False, "answers": {}}
+        game_state['players'][request.sid] = {
+            "name": data['name'][:15],
+            "score": 0,
+            "joined": False,
+            "answers": {}
+        }
         join_room(game_state['room_id'])
-        emit('player_waiting', {'name': data['name'], 'sid': request.sid}, room=game_state['host_sid'])
-    else: emit('error', {'msg': "PIN sai!"})
+        emit('player_waiting', {'sid': request.sid, 'name': data['name']}, room=game_state['host_sid'])
+    else:
+        emit('error', {'msg': 'PIN sai rồi bạn ơi!'})
 
 @socketio.on('host_approve_player')
-def approve_one(data):
-    sid = data.get('sid')
+def approve(sid):
     if sid in game_state['players']:
         game_state['players'][sid]['joined'] = True
         emit('player_approved', room=sid)
 
 @socketio.on('host_approve_all')
 def approve_all():
-    for sid in game_state['players']:
-        game_state['players'][sid]['joined'] = True
-        emit('player_approved', room=sid)
+    for sid in list(game_state['players'].keys()):
+        approve(sid)
 
 @socketio.on('start_round')
-def start_round():
+def start():
     if prepare_round_questions():
         game_state['is_started'] = True
         game_state['active_question_index'] = 0
-        for p in game_state['players'].values(): p['answers'] = {}
-        send_question_logic()
+        for p in game_state['players'].values():
+            p['answers'] = {}
+        send_next_question()
 
 @socketio.on('submit_answer')
-def handle_ans(data):
+def answer(data):
     sid = request.sid
-    if sid in game_state['players'] and game_state['is_started'] and sid not in game_state['answered_players']:
-        idx = game_state['active_question_index']
-        user_ans = str(data.get('ans')).upper()
-        game_state['players'][sid]['answers'][idx] = user_ans
-        game_state['answered_players'].add(sid)
-        
-        if user_ans == game_state['current_round_qs'][idx]['ans']:
-            elapsed = time.time() - game_state['start_time']
-            game_state['players'][sid]['score'] += 100 + max(0, int(15 - elapsed))
-            game_state['correct_responses'][sid] = elapsed
-            
-        update_lb()
-        
-        # CHUYỂN CÂU TỰ ĐỘNG KHI MỌI NGƯỜI ĐÃ TRẢ LỜI XONG
-        joined_count = len([s for s, p in game_state['players'].items() if p.get('joined')])
-        if len(game_state['answered_players']) >= joined_count:
-            # Chạy logic chuyển câu trong một thread riêng để không block Socket
-            socketio.start_background_task(process_bonus_and_next)
+    if (sid not in game_state['players'] or not game_state['is_started'] or 
+        sid in game_state['answered_players']):
+        return
+
+    idx = game_state['active_question_index']
+    ans = str(data.get('ans')).upper()
+    player = game_state['players'][sid]
+    player['answers'][idx] = ans
+    game_state['answered_players'].add(sid)
+
+    if ans == game_state['current_round_qs'][idx]['ans']:
+        elapsed = time.time() - game_state['start_time']
+        bonus = max(0, int(15 - elapsed) * 3)
+        player['score'] += 100 + bonus
+        game_state['correct_responses'][sid] = elapsed
+
+    update_leaderboard()
+
+    # Nếu tất cả đã trả lời → chuyển luôn
+    joined_count = sum(1 for p in game_state['players'].values() if p.get('joined'))
+    if len(game_state['answered_players']) >= joined_count:
+        socketio.start_background_task(process_transition)
 
 @socketio.on('claim_spin')
-def claim_spin(data):
+def claim(points):
     sid = request.sid
     if sid in game_state['players']:
-        game_state['players'][sid]['score'] += int(data.get('points', 0))
-        update_lb()
+        game_state['players'][sid]['score'] += int(points)
+        update_leaderboard()
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
