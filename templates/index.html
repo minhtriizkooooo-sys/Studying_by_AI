@@ -30,11 +30,9 @@
 
         .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
         
-        /* PHẦN DANH SÁCH USER TRONG LOBBY */
-        .user-list-box { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fcfcfc; min-height: 120px; max-height: 200px; overflow-y: auto; }
-        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 5px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .user-list-box { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fcfcfc; min-height: 120px; max-height: 250px; overflow-y: auto; }
+        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 8px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        /* FOOTER ĐÚNG MẪU */
         footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
         .footer-info b { color: var(--accent); }
 
@@ -122,7 +120,7 @@
         <div id="user-waiting" class="hidden card-custom text-center py-5">
             <h5 class="mb-3">Chào thí sinh: <b id="user-welcome-name">...</b></h5>
             <div class="spinner-grow text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold">CHỜ DUYỆT...</h4>
+            <h4 id="wait-status-text" class="fw-bold text-primary">CHỜ DUYỆT...</h4>
             <p class="text-muted">Tên bạn đã hiện trên màn hình Giáo viên.</p>
         </div>
         <div id="user-quiz-area" class="hidden card-custom">
@@ -144,13 +142,6 @@
     </div>
 </footer>
 
-<script>
-    function approveAll() {
-        const waitingList = document.getElementById('waiting-list');
-        const buttons = waitingList.querySelectorAll('button');
-        buttons.forEach(btn => btn.click());
-    }
-</script>
 <script src="/static/js/main.js"></script>
 </body>
 </html>
