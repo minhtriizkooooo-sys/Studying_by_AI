@@ -9,176 +9,149 @@
         :root { --navy: #001f3f; --orange: #FF4500; }
         html, body { height: 100%; margin: 0; display: flex; flex-direction: column; overflow: hidden; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 200px 1fr 200px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
-        .logo-area img { height: 70px; width: auto; }
         main { flex: 1; overflow-y: auto; padding: 25px; }
         footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.95rem; }
-        
-        #welcome-banner { position: sticky; top: -25px; z-index: 1000; background: #fff; border-radius: 0 0 15px 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 10px; margin-bottom: 20px; text-align: center; border: 2px solid var(--orange); }
-        
         .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
-        .timer-circle { font-size: 3.5rem; font-weight: 800; color: var(--orange); line-height: 1; }
-        .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; transition: 0.2s; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--navy); background: #f9f9f9; }
+        .timer-circle { font-size: 3.5rem; font-weight: 800; color: var(--orange); text-align: center; }
+        .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; }
+        .btn-ans:hover:not(:disabled) { background: #f0f0f0; border-color: var(--navy); }
         .hidden { display: none !important; }
-        .lb-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-        .lucky-spin-box { background: #fff3cd; border: 2px dashed #ffc107; border-radius: 10px; padding: 10px; text-align: center; }
-        .spin-number { font-size: 1.8rem; font-weight: 900; color: #d63384; display: block; }
+        .lb-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        #event-toast { position: fixed; top: 100px; right: 20px; width: 300px; z-index: 9999; }
     </style>
 </head>
 <body>
+<audio id="snd-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+<audio id="snd-wrong" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+<audio id="snd-event" src="https://assets.mixkit.co/active_storage/sfx/2017/2017-preview.mp3"></audio>
+
 <header>
-    <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
-    <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
+    <div><img src="https://cdn-icons-png.flaticon.com/512/826/826070.png" height="60"></div>
+    <div class="text-center"><h3>MARIE CURIE SMART EDUCATION</h3></div>
 </header>
 
 <main class="container">
-    <div id="welcome-banner" class="hidden">
-        <h4 class="m-0 text-navy">Chào mừng <b id="display-name" class="text-orange"></b> đến với <b>MARIE CURIE SMART EDUCATION</b></h4>
+    <div id="welcome-banner" class="hidden alert alert-light border-warning text-center">
+        <h4 class="m-0">Chào <b id="display-name" class="text-danger"></b> | <span id="q-counter" class="badge bg-primary"></span></h4>
     </div>
 
     <div id="role-select" class="text-center py-5">
-        <div class="dash-card d-inline-block px-5">
-            <h2 class="mb-4">Chào mừng bạn!</h2>
-            <button class="btn btn-dark btn-lg px-5 me-2" onclick="init('host')">BẢN HOST</button>
-            <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">BẢN USER</button>
-        </div>
+        <button class="btn btn-dark btn-lg px-5 me-3" onclick="init('host')">HOST</button>
+        <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">USER</button>
     </div>
 
     <div id="host-area" class="hidden">
         <div class="row">
             <div class="col-md-4">
                 <div class="dash-card">
-                    <a href="/download_template" class="btn btn-sm btn-outline-primary mb-3 w-100">📥 TẢI FILE EXCEL MẪU</a>
-                    <input type="file" id="csv-file" class="form-control mb-3" accept=".xlsx,.xls,.csv">
+                    <input type="file" id="csv-file" class="form-control mb-3">
                     <div id="qr-display" class="hidden text-center">
-                        <img id="qr-img" class="mb-3 shadow" style="width:150px;">
-                        <h1 id="pin-val" class="text-primary fw-bold"></h1>
-                        <div id="wait-box" class="mt-3 text-start bg-light p-2 rounded" style="max-height:150px; overflow-y:auto;"></div>
-                        <button class="btn btn-success w-100 mt-2" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
+                        <img id="qr-img" class="mb-2">
+                        <h1 id="pin-val" class="text-primary"></h1>
+                        <div id="wait-box" class="bg-light p-2 mb-2" style="max-height:150px; overflow-y:auto;"></div>
+                        <button class="btn btn-success w-100" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
                     </div>
                 </div>
-                <button class="btn btn-danger btn-lg w-100 mb-2 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG THI</button>
-                <button class="btn btn-info w-100 shadow" onclick="openReview(true)">REVIEW TẤT CẢ USER</button>
+                <button class="btn btn-danger btn-lg w-100 mb-3 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG THI</button>
+                <button class="btn btn-info w-100" onclick="openReview(true)">TỔNG HỢP KẾT QUẢ</button>
             </div>
             <div class="col-md-8">
-                <div class="dash-card text-center py-4">
+                <div class="dash-card">
                     <div class="timer-circle" id="host-clock">15.0</div>
-                    <div id="host-q-content" class="mt-3">Chờ dữ liệu...</div>
+                    <h3 id="host-q-content" class="text-center mt-3">Sẵn sàng...</h3>
                 </div>
-                <div class="dash-card"><h5>BẢNG XẾP HẠNG LIVE</h5><div id="host-lb"></div></div>
+                <div class="dash-card"><h5>BẢNG XẾP HẠNG</h5><div id="host-lb"></div></div>
             </div>
         </div>
     </div>
 
     <div id="user-area" class="hidden">
-        <div id="user-login" class="dash-card mx-auto" style="max-width: 420px;">
-            <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên của bạn">
-            <input type="text" id="pin-in" class="form-control mb-3" placeholder="Nhập mã PIN">
+        <div id="user-login" class="dash-card mx-auto" style="max-width:400px;">
+            <input type="text" id="name-in" class="form-control mb-3" placeholder="Tên của bạn">
+            <input type="text" id="pin-in" class="form-control mb-3" placeholder="Mã PIN">
             <button class="btn btn-primary w-100" onclick="join()">THAM GIA</button>
         </div>
-
         <div id="user-quiz" class="hidden">
             <div class="row">
                 <div class="col-md-8">
-                    <div class="dash-card text-center">
+                    <div class="dash-card">
                         <div class="timer-circle" id="clock">15.0</div>
-                        <h2 id="q-body" class="fw-bold my-4"></h2>
+                        <h2 id="q-body" class="text-center my-4"></h2>
                         <div id="ans-list"></div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="dash-card">
+                    <div class="dash-card text-center">
                         <h5>ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
-                        <hr>
-                        <h6>XẾP HẠNG</h6>
-                        <div id="user-lb" class="small"></div>
+                        <div id="user-lb" class="small mt-3"></div>
                     </div>
-                    <button class="btn btn-info w-100 hidden" id="review-btn" onclick="openReview(false)">XEM LẠI KẾT QUẢ</button>
+                    <button id="review-btn" class="btn btn-info w-100 hidden" onclick="openReview(false)">XEM LẠI BÀI</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="review-screen" class="hidden container">
+    <div id="review-screen" class="hidden">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 id="review-header-title">BÁO CÁO CHI TIẾT</h2>
+            <h2>BÁO CÁO CHI TIẾT</h2>
             <button class="btn btn-secondary" onclick="location.reload()">QUAY LẠI</button>
         </div>
         <div id="review-data"></div>
     </div>
 </main>
 
-<div id="event-toast" style="position:fixed; bottom:80px; right:30px; width:360px; z-index:9999;"></div>
-
-<footer>
-    Developer: <span class="text-warning">Lại Nguyễn Minh Trí</span> | Hotline: <span class="text-warning">84-908-08-3566</span>
-    <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
-</footer>
+<div id="event-toast"></div>
+<footer>Developer: Lại Nguyễn Minh Trí | 0908 08 3566</footer>
 
 <script>
     const socket = io();
     let myRole = "", myName = "", clockInt;
 
-    function init(r) {
-        myRole = r;
-        document.getElementById('role-select').classList.add('hidden');
-        document.getElementById(r + '-area').classList.remove('hidden');
-    }
-
-    function join() {
-        myName = document.getElementById('name-in').value.trim();
-        const pin = document.getElementById('pin-in').value.trim();
-        if (myName && pin) socket.emit('join_request', {name: myName, pin: pin});
-    }
-
-    socket.on('join_received', () => {
-        document.getElementById('user-login').innerHTML = "<div class='text-center p-4'><h4>Đã gửi yêu cầu! Đợi Host duyệt...</h4></div>";
-    });
-
-    socket.on('approved_success', () => {
-        document.getElementById('welcome-banner').classList.remove('hidden');
-        document.getElementById('display-name').innerText = myName || "User";
-        document.getElementById('user-login').classList.add('hidden');
-        document.getElementById('user-quiz').classList.remove('hidden');
+    function init(r) { myRole = r; document.getElementById('role-select').classList.add('hidden'); document.getElementById(r + '-area').classList.remove('hidden'); }
+    function join() { myName = document.getElementById('name-in').value; socket.emit('join_request', {name: myName, pin: document.getElementById('pin-in').value}); }
+    
+    socket.on('join_received', () => { document.getElementById('user-login').innerHTML = "<h4 class='text-center'>Đã gửi yêu cầu...</h4>"; });
+    socket.on('approved_success', () => { 
+        document.getElementById('welcome-banner').classList.remove('hidden'); 
+        document.getElementById('display-name').innerText = myName;
+        document.getElementById('user-login').classList.add('hidden'); 
+        document.getElementById('user-quiz').classList.remove('hidden'); 
     });
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
+        document.getElementById('q-counter').innerText = `Câu ${d.idx}/${d.total}`;
         if (myRole === 'user') {
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
-            ['Đáp án A','Đáp án B','Đáp án C','Đáp án D'].forEach((k, i) => {
-                const btn = document.createElement('button');
-                btn.className = 'btn-ans'; btn.innerText = `${['A','B','C','D'][i]}. ${d.q[k]}`;
-                btn.onclick = () => {
-                    socket.emit('submit_ans', {ans: d.q[k]});
-                    Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true);
-                };
+            ['A','B','C','D'].forEach(l => {
+                const btn = document.createElement('button'); btn.className = 'btn-ans'; btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
+                btn.onclick = () => { socket.emit('submit_ans', {ans: d.q['Đáp án '+l]}); Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true); };
                 box.appendChild(btn);
             });
-        } else {
-            document.getElementById('host-q-content').innerHTML = `<h2 class='fw-bold'>${d.q['Câu hỏi']}</h2>`;
-        }
+        } else { document.getElementById('host-q-content').innerText = d.q['Câu hỏi']; }
         startCountdown();
     });
 
     function startCountdown() {
         let t = 15.0;
         clockInt = setInterval(() => {
-            t -= 0.1;
-            if (t <= 0) { t = 0; clearInterval(clockInt); if(myRole === 'host') socket.emit('times_up'); }
+            t -= 0.1; if (t <= 0) { t = 0; clearInterval(clockInt); if(myRole==='host') socket.emit('times_up'); }
             const disp = t.toFixed(1);
             if(document.getElementById('clock')) document.getElementById('clock').innerText = disp;
             if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = disp;
         }, 100);
     }
 
+    socket.on('stop_clock', () => { clearInterval(clockInt); });
+    socket.on('answer_result', d => { document.getElementById(d.status === 'correct' ? 'snd-correct' : 'snd-wrong').play(); });
+
     socket.on('special_event', d => {
-        const container = document.getElementById('event-toast');
+        document.getElementById('snd-event').play();
         const div = document.createElement('div');
-        div.className = d.type === 'lucky' ? "lucky-spin-box shadow mb-2" : "alert alert-warning shadow mb-2";
-        div.innerHTML = d.type === 'lucky' ? `<b>🎰 LUCKY SPIN: ${d.name}</b><br><span class='spin-number'>+${d.val}đ</span>` : `<b>⚔️ MARK STEAL!</b><br>${d.msg}`;
-        container.appendChild(div);
+        div.className = "alert alert-warning shadow-lg border-danger mb-2 animate__animated animate__bounceIn";
+        div.innerHTML = d.type === 'lucky' ? `🎰 <b>LUCKY!</b> ${d.name} được tặng <b>+${d.val}đ</b>` : `⚔️ <b>CƯỚP ĐIỂM!</b> ${d.msg}`;
+        document.getElementById('event-toast').appendChild(div);
         setTimeout(() => div.remove(), 4000);
     });
 
@@ -186,48 +159,38 @@
         const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><span><b>${p.total}</b> <small class='text-success'>(+${p.last})</small></span></div>`).join('');
         if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
         if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
-        const me = d.find(x => x.name === myName);
-        if (me && document.getElementById('my-pts')) document.getElementById('my-pts').innerText = me.total;
-    });
-
-    socket.on('enable_review', () => {
-        if(document.getElementById('review-btn')) document.getElementById('review-btn').classList.remove('hidden');
+        const me = d.find(x => x.name === myName); if(me) document.getElementById('my-pts').innerText = me.total;
     });
 
     function openReview(isHost) {
-        document.getElementById('host-area').classList.add('hidden');
-        document.getElementById('user-area').classList.add('hidden');
-        document.getElementById('review-screen').classList.remove('hidden');
-        document.getElementById('review-header-title').innerText = isHost ? "TỔNG HỢP KẾT QUẢ TẤT CẢ USER" : "KẾT QUẢ CHI TIẾT CỦA BẠN";
-        socket.emit('get_review', {is_host: isHost});
+        document.getElementById('host-area').classList.add('hidden'); document.getElementById('user-area').classList.add('hidden');
+        document.getElementById('review-screen').classList.remove('hidden'); socket.emit('get_review', {is_host: isHost});
     }
 
     socket.on('render_review', data => {
         document.getElementById('review-data').innerHTML = data.map(it => `
             <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
-                <h5 class="fw-bold">${it.name ? '['+it.name+'] ' : ''}Câu ${it.idx}: ${it.q}</h5>
-                <p class="mb-1">Lựa chọn: <b>${it.u}</b> | Đáp án đúng: <b class="text-success">${it.c}</b></p>
-                <p class="mb-1">Thời gian: <b>${it.time}s</b> | Điểm: <b>+${it.pts}</b></p>
-                <div class="mt-2 p-2 bg-light rounded small"><i><b>Giải thích:</b> ${it.ex}</i></div>
+                <h5>${it.name ? '['+it.name+'] ' : ''}Câu ${it.idx}: ${it.q}</h5>
+                <div class="row small mb-2">
+                    <div class="col-6">A: ${it.A}</div><div class="col-6">B: ${it.B}</div>
+                    <div class="col-6">C: ${it.C}</div><div class="col-6">D: ${it.D}</div>
+                </div>
+                <p class='mb-1'>Chọn: <b class='text-primary'>${it.u}</b> | Đáp án: <b class='text-success'>${it.c}</b> | Điểm: <b>+${it.pts}</b></p>
+                <div class='bg-light p-2 rounded small'><i>Giải thích: ${it.ex}</i></div>
             </div>`).join('');
     });
 
     document.getElementById('csv-file').onchange = e => {
-        const reader = new FileReader();
-        reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
+        const reader = new FileReader(); reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
         reader.readAsDataURL(e.target.files[0]);
     };
-    socket.on('qr_ready', d => {
-        document.getElementById('qr-display').classList.remove('hidden');
-        document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
-        document.getElementById('pin-val').innerText = d.pin;
-    });
+    socket.on('qr_ready', d => { document.getElementById('qr-display').classList.remove('hidden'); document.getElementById('qr-img').src = "data:image/png;base64," + d.qr; document.getElementById('pin-val').innerText = d.pin; });
     socket.on('new_player_waiting', d => {
-        const div = document.createElement('div');
-        div.className = "d-flex justify-content-between align-items-center mb-1";
-        div.innerHTML = `<span>${d.name}</span><button class='btn btn-sm btn-primary' onclick="socket.emit('approve_player',{sid:'${d.sid}'})">Duyệt</button>`;
+        const div = document.createElement('div'); div.className="d-flex justify-content-between mb-1";
+        div.innerHTML = `<span>${d.name}</span> <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_player',{sid:'${d.sid}'})">Duyệt</button>`;
         document.getElementById('wait-box').appendChild(div);
     });
+    socket.on('enable_review', () => document.getElementById('review-btn')?.classList.remove('hidden'));
 </script>
 </body>
 </html>
