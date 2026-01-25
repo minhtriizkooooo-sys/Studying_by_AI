@@ -8,113 +8,101 @@
     <style>
         :root { --navy: #001f3f; --orange: #FF4500; }
         html, body { height: 100%; margin: 0; display: flex; flex-direction: column; overflow: hidden; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
-        
-        /* Header & Logo chuẩn nhỏ */
-        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
-        .logo-area img { height: 40px; width: auto; } 
-
+        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
+        .logo-area img { height: 45px; width: auto; }
         main { flex: 1; overflow-y: auto; padding: 25px; }
-        
-        /* Footer chuẩn: Chữ trắng, riêng tên & SĐT màu cam */
-        footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.95rem; }
+        footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.9rem; }
         .orange-text { color: var(--orange) !important; font-weight: bold; }
-        
         .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
-        .timer-circle { font-size: 3.5rem; font-weight: 800; color: var(--orange); text-align: center; }
+        .timer-circle { font-size: 3rem; font-weight: 800; color: var(--orange); }
         .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; }
         .hidden { display: none !important; }
-        .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-        #event-toast { position: fixed; top: 100px; right: 20px; width: 300px; z-index: 9999; }
+        .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
     </style>
 </head>
 <body>
-<audio id="snd-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
-<audio id="snd-wrong" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
-<audio id="snd-event" src="https://assets.mixkit.co/active_storage/sfx/2017/2017-preview.mp3"></audio>
 
 <header>
     <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
-    <div class="text-center"><h3>MARIE CURIE SMART EDUCATION</h3></div>
+    <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
 </header>
 
 <main class="container">
-    <div id="welcome-banner" class="hidden alert alert-light border-warning text-center">
-        <h4 class="m-0">Chào <b id="display-name" class="text-danger"></b> | <span id="q-counter" class="badge bg-primary"></span></h4>
-    </div>
-
     <div id="role-select" class="text-center py-5">
-        <button class="btn btn-dark btn-lg px-5 me-3" onclick="init('host')">HOST</button>
-        <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">USER</button>
+        <div class="dash-card d-inline-block px-5">
+            <h2 class="mb-4">Hệ thống Trắc nghiệm</h2>
+            <button class="btn btn-dark btn-lg px-5 me-2" onclick="init('host')">BẢN HOST</button>
+            <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">BẢN USER</button>
+        </div>
     </div>
 
     <div id="host-area" class="hidden">
         <div class="row">
             <div class="col-md-4">
                 <div class="dash-card">
-                    <a href="/download_template" class="btn btn-outline-primary btn-sm w-100 mb-3">TẢI FILE MẪU EXCEL</a>
+                    <a href="/template" class="btn btn-outline-primary btn-sm w-100 mb-3">TẢI FILE MẪU EXCEL</a>
                     <input type="file" id="csv-file" class="form-control mb-3">
                     <div id="qr-display" class="hidden text-center">
-                        <img id="qr-img" class="mb-2" style="width: 140px;">
-                        <h1 id="pin-val" class="text-primary"></h1>
-                        <div id="wait-box" class="bg-light p-2 mb-2" style="max-height:150px; overflow-y:auto;"></div>
-                        <button class="btn btn-success w-100" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
+                        <img id="qr-img" class="mb-2 shadow" style="width:140px;">
+                        <h1 id="pin-val" class="text-primary fw-bold"></h1>
+                        <div id="wait-box" class="mt-2 text-start bg-light p-2 rounded" style="max-height:150px; overflow-y:auto;"></div>
+                        <button class="btn btn-success w-100 mt-2" onclick="socket.emit('approve_all')">DUYỆT TẤT CẢ</button>
                     </div>
                 </div>
                 <button class="btn btn-danger btn-lg w-100 mb-3 shadow" onclick="socket.emit('start_next_round')">BẮT ĐẦU VÒNG THI</button>
-                <button class="btn btn-info w-100" onclick="openReview(true)">TỔNG HỢP KẾT QUẢ</button>
             </div>
             <div class="col-md-8">
-                <div class="dash-card">
-                    <div class="timer-circle" id="host-clock">15.0</div>
-                    <h3 id="host-q-content" class="text-center mt-3">Đang chờ Host...</h3>
+                <div class="dash-card text-center">
+                    <div class="timer-circle"><span id="host-clock">15.0</span>/15.0s</div>
+                    <div id="host-q-content" class="mt-3"><h5>Đang chờ...</h5></div>
                 </div>
-                <div class="dash-card"><h5>BẢNG XẾP HẠNG REALTIME</h5><div id="host-lb"></div></div>
+                <div class="dash-card"><h6>BẢNG XẾP HẠNG REALTIME</h6><div id="host-lb"></div></div>
             </div>
         </div>
     </div>
 
     <div id="user-area" class="hidden">
-        <div id="user-login" class="dash-card mx-auto" style="max-width:400px;">
+        <div id="user-login" class="dash-card mx-auto" style="max-width: 420px;">
             <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên">
-            <input type="text" id="pin-in" class="form-control mb-3" placeholder="Nhập PIN">
-            <button class="btn btn-primary w-100" onclick="join()">VÀO THI</button>
+            <input type="text" id="pin-in" class="form-control mb-3" placeholder="Mã PIN">
+            <button class="btn btn-primary w-100" onclick="join()">THAM GIA</button>
         </div>
+
         <div id="user-quiz" class="hidden">
             <div class="row">
                 <div class="col-md-8">
-                    <div class="dash-card">
-                        <div class="timer-circle" id="clock">15.0</div>
-                        <h2 id="q-body" class="text-center my-4"></h2>
+                    <div class="dash-card text-center">
+                        <div class="timer-circle"><span id="clock">15.0</span>/15.0s</div>
+                        <h5 id="q-meta" class="text-muted mt-2 fw-bold"></h5>
+                        <h2 id="q-body" class="fw-bold my-4"></h2>
                         <div id="ans-list"></div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="dash-card text-center">
-                        <h5>ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
-                        <div id="user-lb" class="small mt-3"></div>
+                        <h5>TỔNG ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
+                        <div id="last-pts-gain" class="small fw-bold"></div>
+                        <hr>
+                        <div id="user-lb" class="text-start small"></div>
                     </div>
-                    <button id="review-btn" class="btn btn-info w-100 hidden" onclick="openReview(false)">XEM LẠI BÀI</button>
+                    <button id="review-btn" class="btn btn-info w-100 hidden" onclick="openReview()">XEM LẠI BÀI LÀM</button>
                 </div>
             </div>
         </div>
     </div>
 
     <div id="review-screen" class="hidden">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>BÁO CÁO CHI TIẾT</h2>
-            <button class="btn btn-secondary" onclick="location.reload()">QUAY LẠI</button>
+        <div class="d-flex justify-content-between mb-4">
+            <h2>KẾT QUẢ CHI TIẾT</h2>
+            <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
         </div>
         <div id="review-data"></div>
     </div>
 </main>
 
-<div id="event-toast"></div>
 <footer>
-    <div>
-        Developer: <span class="orange-text">Lại Nguyễn Minh Trí</span> | 
-        Hotline: <span class="orange-text">84-908-08-3566</span><br>
-        <span style="opacity: 0.8; font-size: 0.8rem;">Hệ thống Trắc nghiệm Thông minh © 2026</span>
-    </div>
+    Developer: <span class="orange-text">Lại Nguyễn Minh Trí</span> | Hotline: <span class="orange-text">84-908-08-3566</span><br>
+    <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
 </footer>
 
 <script>
@@ -122,89 +110,115 @@
     let myRole = "", myName = "", clockInt;
 
     function init(r) { myRole = r; document.getElementById('role-select').classList.add('hidden'); document.getElementById(r + '-area').classList.remove('hidden'); }
-    function join() { myName = document.getElementById('name-in').value; socket.emit('join_request', {name: myName, pin: document.getElementById('pin-in').value}); }
     
-    socket.on('join_received', () => { document.getElementById('user-login').innerHTML = "<h4 class='text-center'>Đã gửi yêu cầu...</h4>"; });
-    socket.on('approved_success', () => { 
-        document.getElementById('welcome-banner').classList.remove('hidden'); 
-        document.getElementById('display-name').innerText = myName;
-        document.getElementById('user-login').classList.add('hidden'); 
-        document.getElementById('user-quiz').classList.remove('hidden'); 
+    function join() {
+        myName = document.getElementById('name-in').value.trim();
+        const pin = document.getElementById('pin-in').value.trim();
+        if(!myName || !pin) return;
+        socket.emit('join_request', {name: myName, pin: pin});
+    }
+
+    socket.on('join_received', () => {
+        document.getElementById('user-login').innerHTML = `<div class="text-center py-4"><h4>Chào <b>${myName}</b></h4><p>Chờ host duyệt...</p><div class="spinner-border text-primary"></div></div>`;
+    });
+
+    socket.on('approved_success', () => {
+        document.getElementById('user-login').classList.add('hidden');
+        document.getElementById('user-quiz').classList.remove('hidden');
+    });
+
+    socket.on('join_received', () => {
+        const loginBox = document.getElementById('user-login');
+        loginBox.innerHTML = `
+            <div class="text-center py-4">
+                <h4 class="text-navy">Chào mừng <b>${myName}</b> đến với</h4>
+                <h5 class="fw-bold text-orange">MARIE CURIE SMART EDUCATION</h5>
+                <p class="mt-3 text-muted">Yêu cầu đã gửi! Đang chờ host duyệt...</p>
+                <div class="spinner-border text-primary mt-2"></div>
+            </div>`;
     });
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
-        document.getElementById('q-counter').innerText = `Câu ${d.idx}/${d.total}`;
+        document.getElementById('last-pts-gain').innerText = ""; 
         if (myRole === 'user') {
+            document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
             ['A','B','C','D'].forEach(l => {
-                const btn = document.createElement('button'); btn.className = 'btn-ans'; btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
-                btn.onclick = () => { socket.emit('submit_ans', {ans: d.q['Đáp án '+l]}); Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true); };
+                const btn = document.createElement('button'); btn.className = 'btn-ans';
+                btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
+                btn.onclick = () => {
+                    socket.emit('submit_ans', {ans: d.q['Đáp án '+l]});
+                    Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true);
+                };
                 box.appendChild(btn);
             });
-        } else { document.getElementById('host-q-content').innerText = d.q['Câu hỏi']; }
+        } else {
+            document.getElementById('host-q-content').innerHTML = `<h4>CÂU ${d.idx}/${d.total}</h4><h2 class="fw-bold">${d.q['Câu hỏi']}</h2>`;
+        }
         startCountdown();
+    });
+
+    // Cập nhật điểm tức thì khi vừa chọn đáp án
+    socket.on('score_update', d => {
+        document.getElementById('my-pts').innerText = d.total;
+        const gainBox = document.getElementById('last-pts-gain');
+        if(d.correct) {
+            gainBox.innerHTML = `<span class="text-success">CHÍNH XÁC! +${d.last}đ</span>`;
+        } else {
+            gainBox.innerHTML = `<span class="text-danger">SAI RỒI! +0đ</span>`;
+        }
     });
 
     function startCountdown() {
         let t = 15.0;
         clockInt = setInterval(() => {
-            t -= 0.1; if (t <= 0) { t = 0; clearInterval(clockInt); if(myRole==='host') socket.emit('times_up'); }
-            const disp = t.toFixed(1);
-            if(document.getElementById('clock')) document.getElementById('clock').innerText = disp;
-            if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = disp;
+            t -= 0.1;
+            if (t <= 0) { t = 0; clearInterval(clockInt); if(myRole==='host') socket.emit('times_up'); }
+            const val = t.toFixed(1);
+            if(document.getElementById('clock')) document.getElementById('clock').innerText = val;
+            if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
         }, 100);
     }
 
-    socket.on('stop_clock', () => { clearInterval(clockInt); });
-    socket.on('answer_result', d => { document.getElementById(d.status === 'correct' ? 'snd-correct' : 'snd-wrong').play(); });
-
-    socket.on('special_event', d => {
-        document.getElementById('snd-event').play();
-        const div = document.createElement('div');
-        div.className = "alert alert-warning shadow-lg border-danger mb-2";
-        div.innerHTML = d.type === 'lucky' ? `🎰 <b>LUCKY!</b> ${d.name} được tặng <b>+${d.val}đ</b>` : `⚔️ <b>CƯỚP ĐIỂM!</b> ${d.msg}`;
-        document.getElementById('event-toast').appendChild(div);
-        setTimeout(() => div.remove(), 4000);
-    });
-
     socket.on('lb_update', d => {
-        const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><span><b>${p.total}</b> <small class='text-success'>(+${p.last})</small></span></div>`).join('');
-        if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
-        if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
-        const me = d.find(x => x.name === myName); if(me) document.getElementById('my-pts').innerText = me.total;
+        const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><b>${p.total}</b></div>`).join('');
+        document.getElementById('host-lb').innerHTML = html;
+        document.getElementById('user-lb').innerHTML = html;
     });
 
-    function openReview(isHost) {
-        document.getElementById('host-area').classList.add('hidden'); document.getElementById('user-area').classList.add('hidden');
-        document.getElementById('review-screen').classList.remove('hidden'); socket.emit('get_review', {is_host: isHost});
+    socket.on('enable_review', () => { if(myRole==='user') document.getElementById('review-btn').classList.remove('hidden'); });
+
+    function openReview() {
+        document.getElementById('user-quiz').classList.add('hidden');
+        document.getElementById('review-screen').classList.remove('hidden');
+        socket.emit('get_review');
     }
 
     socket.on('render_review', data => {
         document.getElementById('review-data').innerHTML = data.map(it => `
             <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
-                <h5>${it.name ? '['+it.name+'] ' : ''}Câu ${it.idx}: ${it.q}</h5>
-                <div class="row small mb-2 text-muted">
-                    <div class="col-6">A: ${it.A}</div><div class="col-6">B: ${it.B}</div>
-                    <div class="col-6">C: ${it.C}</div><div class="col-6">D: ${it.D}</div>
+                <div class="d-flex justify-content-between">
+                    <h5>Câu ${it.idx}: ${it.q}</h5>
+                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'}">+${it.pts} điểm</span>
                 </div>
-                <p class='mb-1'>Chọn: <b class='text-primary'>${it.u}</b> | Đúng: <b class='text-success'>${it.c}</b> | +${it.pts}đ</p>
-                <div class='bg-light p-2 rounded small'><i>Giải thích: ${it.ex}</i></div>
+                <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
+                <p class="mb-2">Đáp án đúng: <b class="text-success">${it.c}</b></p>
+                <div class="small bg-light p-2 rounded"><i><b>Giải thích:</b> ${it.ex}</i></div>
             </div>`).join('');
     });
 
     document.getElementById('csv-file').onchange = e => {
-        const reader = new FileReader(); reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
+        const reader = new FileReader();
+        reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
         reader.readAsDataURL(e.target.files[0]);
     };
-    socket.on('qr_ready', d => { document.getElementById('qr-display').classList.remove('hidden'); document.getElementById('qr-img').src = "data:image/png;base64," + d.qr; document.getElementById('pin-val').innerText = d.pin; });
-    socket.on('new_player_waiting', d => {
-        const div = document.createElement('div'); div.className="d-flex justify-content-between mb-1";
-        div.innerHTML = `<span>${d.name}</span> <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_all')">Duyệt</button>`;
-        document.getElementById('wait-box').appendChild(div);
+    socket.on('qr_ready', d => {
+        document.getElementById('qr-display').classList.remove('hidden');
+        document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
+        document.getElementById('pin-val').innerText = d.pin;
     });
-    socket.on('enable_review', () => document.getElementById('review-btn')?.classList.remove('hidden'));
 </script>
 </body>
 </html>
