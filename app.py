@@ -4,20 +4,21 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'marie_curie_ultra_2026'
+app.config['SECRET_KEY'] = 'marie_curie_final_v2'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
     "all_questions": [],
     "used_q_indices": set(),
     "current_round_qs": [],
-    "players": {}, # {sid: {name, total, last_pts, history, approved}}
+    "players": {}, 
     "active_q_idx": -1,
     "current_round_num": 0,
     "start_time": 0,
     "pin": None,
     "is_running": False,
-    "king_sid": None # Người cao điểm nhất câu trước
+    "king_sid": None,
+    "current_answers": {}
 }
 
 @app.route('/')
@@ -61,11 +62,17 @@ def approve(data):
         emit('approved_success', room=sid)
         update_live_dashboard()
 
+@socketio.on('approve_all')
+def approve_all():
+    for sid in game_state['players']: game_state['players'][sid]['approved'] = True
+    emit('approved_success', broadcast=True)
+    update_live_dashboard()
+
 @socketio.on('start_next_round')
 def start_round():
     if game_state['is_running']: return
     avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_q_indices']]
-    if len(avail) < 10: return emit('error', {'msg': "Hết câu hỏi!"}, broadcast=True)
+    if len(avail) < 10: return emit('error', {'msg': "Hết câu hỏi cho vòng tiếp theo!"}, broadcast=True)
     
     game_state['current_round_num'] += 1
     selected = random.sample(avail, 10)
@@ -80,43 +87,35 @@ def send_q():
     if idx < 10 and game_state['is_running']:
         game_state['current_answers'] = {}
         for s in game_state['players']: game_state['players'][s]['last_pts'] = 0
-        
         game_state['start_time'] = time.time()
         q = game_state['current_round_qs'][idx]
         emit('new_q', {'q': q, 'idx': idx+1, 'round': game_state['current_round_num']}, broadcast=True)
-        
         socketio.sleep(15.7)
         if game_state['is_running'] and game_state['active_q_idx'] == idx: process_end_q()
 
 def process_end_q():
     idx = game_state['active_q_idx']
-    # Logic Lucky Spin & Mark Steal
     correct_subs = {s: v for s, v in game_state['current_answers'].items() if v['correct']}
     
-    if idx >= 1 and correct_subs: # Từ câu thứ 2 trở đi
+    if idx >= 1 and correct_subs:
         fastest_sid = min(correct_subs, key=lambda x: correct_subs[x]['time'])
-        
         if game_state['king_sid'] == fastest_sid:
-            # LUCKY SPIN
-            bonus = random.choice([50, 100, 150, 200])
+            bonus = random.choice([50, 100, 150])
             game_state['players'][fastest_sid]['total'] += bonus
-            emit('special_event', {'msg': f"🌟 LUCKY SPIN: {game_state['players'][fastest_sid]['name']} giữ vững ngôi vương +{bonus}đ!"}, broadcast=True)
+            emit('special_event', {'msg': f"🌟 LUCKY SPIN: {game_state['players'][fastest_sid]['name']} +{bonus}đ!"}, broadcast=True)
         elif game_state['king_sid'] is not None:
-            # MARK STEAL
-            victim = game_state['king_sid']
-            stolen = int(game_state['players'][victim]['total'] * 0.15)
-            game_state['players'][victim]['total'] -= stolen
+            v = game_state['king_sid']
+            stolen = int(game_state['players'][v]['total'] * 0.15)
+            game_state['players'][v]['total'] -= stolen
             game_state['players'][fastest_sid]['total'] += stolen
-            emit('special_event', {'msg': f"⚡ MARK STEAL: {game_state['players'][fastest_sid]['name']} cướp {stolen}đ từ {game_state['players'][victim]['name']}!"}, broadcast=True)
+            emit('special_event', {'msg': f"⚡ MARK STEAL: {game_state['players'][fastest_sid]['name']} cướp {stolen}đ từ {game_state['players'][v]['name']}!"}, broadcast=True)
 
-    # Cập nhật King mới cho câu sau
     if game_state['players']:
         game_state['king_sid'] = max(game_state['players'], key=lambda x: game_state['players'][x]['total'])
     
     game_state['active_q_idx'] += 1
     update_live_dashboard()
     socketio.sleep(2)
-    
     if game_state['active_q_idx'] < 10: send_q()
     else:
         game_state['is_running'] = False
@@ -126,30 +125,24 @@ def process_end_q():
 def handle_sub(data):
     sid = request.sid
     if sid in game_state.get('current_answers', {}) or not game_state['is_running']: return
-    
     elapsed = time.time() - game_state['start_time']
     q = game_state['current_round_qs'][game_state['active_q_idx']]
     correct = (str(data['ans']).strip() == str(q['Đáp án đúng']).strip())
-    
     pts = int(100 * (1 - elapsed/15.5)) if correct else 0
     game_state['players'][sid]['total'] += pts
     game_state['players'][sid]['last_pts'] = pts
     game_state['players'][sid]['history'].append({
-        "round": game_state['current_round_num'], "q": q['Câu hỏi'], 
-        "u": data['ans'], "c": q['Đáp án đúng'], "ex": q['Giải thích'], "pts": pts
+        "round": game_state['current_round_num'], "q": q['Câu hỏi'], "u": data['ans'], "c": q['Đáp án đúng'], "ex": q['Giải thích'], "pts": pts
     })
-    
-    if 'current_answers' not in game_state: game_state['current_answers'] = {}
     game_state['current_answers'][sid] = {"correct": correct, "time": elapsed}
     update_live_dashboard()
 
 def update_live_dashboard():
-    lb = [{"name": p['name'], "total": p['total'], "last": p['last_pts']} 
-          for p in game_state['players'].values() if p['approved']]
+    lb = [{"name": p['name'], "total": p['total'], "last": p['last_pts']} for p in game_state['players'].values() if p['approved']]
     emit('lb_update', sorted(lb, key=lambda x: x['total'], reverse=True), broadcast=True)
 
-@socketio.on('finish_all')
-def finish_all():
+@socketio.on('finish_game')
+def finish_game():
     emit('enable_review', broadcast=True)
 
 @socketio.on('get_full_review')
