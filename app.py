@@ -1,278 +1,147 @@
-import os
-import random
-import qrcode
-import io
-import base64
-import time
+import os, random, qrcode, io, base64, time
 import pandas as pd
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'marie_curie_2026_final_v3'
+app.config['SECRET_KEY'] = 'marie_curie_2026_final_ultimate'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-game_state = {
-    "all_questions": [],
-    "used_indices": set(),
-    "current_round_qs": [],
-    "players": {},
-    "player_names": set(),
-    "active_q_idx": -1,
-    "current_round_num": 0,
-    "start_time": 0,
-    "pin": None,
-    "is_running": False,
-    "king_sid": None,
-    "current_answers": {},
-    "timer_id": 0
+game = {
+    "all_qs": [], "used_idx": set(), "round_qs": [],
+    "players": {}, "active_idx": -1, "round_num": 0,
+    "start_t": 0, "pin": None, "is_running": False, "king_sid": None,
+    "current_ans": {}, "timer_id": 0
 }
 
 @app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/template')
-def get_template():
-    template = """Câu hỏi,Đáp án A,Đáp án B,Đáp án C,Đáp án D,Đáp án đúng,Giải thích
-Ví dụ: Trong bài thơ Tây Tiến, hình ảnh 'đoàn binh không mọc tóc' phản ánh điều gì?,Sốt rét rừng,Sang chảnh thời thượng,Quy định quân đội,Lương thực thiếu,A,Hình ảnh phản ánh bệnh sốt rét rừng khiến lính rụng tóc...
-...thêm câu hỏi của bạn vào đây...
-"""
-    return template, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+def index(): return render_template('index.html')
 
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
-        if 'content' not in data or not data['content']:
-            raise ValueError("Không nhận được nội dung file")
-
-        header, encoded = data['content'].split(",", 1)
-        content_bytes = base64.b64decode(encoded)
-
-        # Xác định loại file
-        is_excel = header.lower().find('xlsx') > -1 or content_bytes.startswith(b'PK\x03\x04')
-
-        if is_excel:
-            df = pd.read_excel(io.BytesIO(content_bytes))
-        else:
-            # Thử nhiều encoding cho CSV có tiếng Việt
-            encodings = ['utf-8-sig', 'utf-8', 'cp1258', 'windows-1252', 'iso-8859-1', 'latin1']
-            df = None
-            for enc in encodings:
-                try:
-                    df = pd.read_csv(io.BytesIO(content_bytes), encoding=enc)
-                    print(f"[THÀNH CÔNG] Đọc CSV với encoding: {enc}")
-                    break
-                except UnicodeDecodeError:
-                    continue
-            if df is None:
-                raise ValueError("Không thể đọc file CSV. Hãy lưu lại file với định dạng UTF-8 và thử lại!")
-
+        content = base64.b64decode(data['content'].split(",")[1])
+        df = pd.read_excel(io.BytesIO(content)) if b'xl' in content else pd.read_csv(io.BytesIO(content), encoding='utf-8-sig')
         df.columns = df.columns.str.strip()
-        required = ['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích']
-        missing = [col for col in required if col not in df.columns]
-        if missing:
-            raise ValueError(f"File thiếu cột: {', '.join(missing)}")
-
-        if df.empty:
-            raise ValueError("File không có dữ liệu câu hỏi nào!")
-
-        game_state['all_questions'] = df.to_dict('records')
-        game_state['pin'] = str(random.randint(100000, 999999))
-        game_state['used_indices'] = set()
-        game_state['players'] = {}
-        game_state['player_names'] = set()
-        game_state['current_round_num'] = 0
-        game_state['is_running'] = False
-        game_state['king_sid'] = None
-
+        game['all_qs'] = df.to_dict('records')
+        game['pin'] = str(random.randint(100000, 999999))
         qr = qrcode.QRCode(box_size=10, border=2)
-        qr.add_data(game_state['pin'])
-        qr.make(fit=True)
+        qr.add_data(game['pin']); qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        emit('qr_ready', {
-            'qr': base64.b64encode(buf.getvalue()).decode('utf-8'),
-            'pin': game_state['pin']
-        }, room=request.sid)
-
-        emit('upload_success', {'msg': f'Upload thành công! Có {len(df)} câu hỏi.'}, room=request.sid)
-
-    except Exception as e:
-        print(f"[LỖI UPLOAD] {str(e)}")
-        emit('error', {'msg': str(e)}, room=request.sid)
+        buf = io.BytesIO(); img.save(buf, format='PNG')
+        emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game['pin']})
+    except Exception as e: emit('error', {'msg': f"Lỗi file: {str(e)}"})
 
 @socketio.on('join_request')
 def join(data):
-    name = data.get('name', '').strip()
-    pin = data.get('pin')
-    
-    if pin != game_state['pin']:
-        emit('join_failed', {'msg': 'PIN không đúng!'})
-        return
-    
-    if name in game_state['player_names']:
-        emit('join_failed', {'msg': 'Tên này đã được sử dụng trong phòng!'})
-        return
-    
-    sid = request.sid
-    game_state['players'][sid] = {
-        "name": name,
-        "total": 0,
-        "last_pts": 0,
-        "history": [],
-        "approved": False
-    }
-    game_state['player_names'].add(name)
-    
-    emit('new_player_waiting', {'name': name, 'sid': sid}, broadcast=True)
-    emit('join_received', room=sid)
+    if data.get('pin') == game['pin']:
+        sid = request.sid
+        game['players'][sid] = {"name": data['name'], "total": 0, "last": 0, "history": [], "approved": False}
+        emit('new_player_waiting', {'name': data['name'], 'sid': sid}, broadcast=True)
 
 @socketio.on('approve_player')
 def approve(data):
     sid = data.get('sid')
-    if sid in game_state['players']:
-        game_state['players'][sid]['approved'] = True
+    if sid in game['players']:
+        game['players'][sid]['approved'] = True
         emit('approved_success', room=sid)
         update_lb()
 
 @socketio.on('approve_all')
 def approve_all():
-    for sid in game_state['players']:
-        game_state['players'][sid]['approved'] = True
-    emit('approved_success', broadcast=True)
-    update_lb()
+    for s in game['players']: game['players'][s]['approved'] = True
+    emit('approved_success', broadcast=True); update_lb()
 
 @socketio.on('start_next_round')
 def start_round():
-    if game_state['is_running']:
-        return
-    avail = [i for i in range(len(game_state['all_questions'])) if i not in game_state['used_indices']]
-    if len(avail) < 10:
-        return emit('error', {'msg': "Hết câu hỏi trong kho!"})
-    
-    game_state['current_round_num'] += 1
-    selected = random.sample(avail, 10)
-    game_state['used_indices'].update(selected)
-    game_state['current_round_qs'] = [game_state['all_questions'][i] for i in selected]
-    game_state['active_q_idx'] = 0
-    game_state['is_running'] = True
+    if game['is_running']: return
+    avail = [i for i in range(len(game['all_qs'])) if i not in game['used_idx']]
+    if len(avail) < 10: return emit('error', {'msg': "Hết câu hỏi trong kho!"})
+    game['round_num'] += 1
+    sel = random.sample(avail, 10)
+    game['used_idx'].update(sel)
+    game['round_qs'] = [game['all_qs'][i] for i in sel]
+    game['active_idx'] = 0; game['is_running'] = True
     send_q()
 
 def send_q():
-    idx = game_state['active_q_idx']
-    if idx >= 10 or not game_state['is_running']:
-        return
-    
-    game_state['current_answers'] = {}
-    for s in game_state['players']:
-        game_state['players'][s]['last_pts'] = 0
-    
-    game_state['start_time'] = time.time()
-    game_state['timer_id'] += 1
-    this_timer = game_state['timer_id']
-    
-    q_data = game_state['current_round_qs'][idx]
-    emit('new_q', {
-        'q': q_data,
-        'idx': idx + 1,
-        'round': game_state['current_round_num']
-    }, broadcast=True)
-    
-    socketio.sleep(15.2)
-    if game_state['timer_id'] == this_timer and game_state['is_running'] and game_state['active_q_idx'] == idx:
-        process_end_q()
+    idx = game['active_idx']
+    if idx < 10 and game['is_running']:
+        game['current_ans'] = {}
+        game['start_t'] = time.time()
+        game['timer_id'] += 1
+        curr_t_id = game['timer_id']
+        emit('new_q', {'q': game['round_qs'][idx], 'idx': idx+1, 'round': game['round_num']}, broadcast=True)
+        socketio.sleep(15.2)
+        if game['timer_id'] == curr_t_id and game['is_running']: process_end_q()
 
 def process_end_q():
-    if not game_state['is_running']:
-        return
+    emit('stop_timer', broadcast=True)
+    idx = game['active_idx']
+    corrects = {s: v for s, v in game['current_ans'].items() if v['ok']}
     
-    idx = game_state['active_q_idx']
-    corrects = {s: v for s, v in game_state['current_answers'].items() if v['correct']}
-    
-    if game_state['king_sid'] and game_state['king_sid'] in corrects:
+    # Thực thi Lucky Spin (King trả lời đúng)
+    if game['king_sid'] in corrects:
         bonus = random.choice([50, 100, 150])
-        game_state['players'][game_state['king_sid']]['total'] += bonus
-        emit('special_event', {'msg': f"🌟 LUCKY SPIN: {game_state['players'][game_state['king_sid']]['name']} +{bonus}đ!"}, broadcast=True)
+        game['players'][game['king_sid']]['total'] += bonus
+        emit('special_event', {'msg': f"🌟 LUCKY SPIN: {game['players'][game['king_sid']]['name']} +{bonus}đ!"}, broadcast=True)
     
-    if corrects:
-        fastest_sid = min(corrects, key=lambda x: corrects[x]['time'])
-        if game_state['king_sid'] and fastest_sid != game_state['king_sid']:
-            k_sid = game_state['king_sid']
-            stolen = int(game_state['players'][k_sid]['total'] * 0.1)
-            if stolen > 0:
-                game_state['players'][k_sid]['total'] -= stolen
-                game_state['players'][fastest_sid]['total'] += stolen
-                emit('special_event', {'msg': f"⚡ MARK STEAL: {game_state['players'][fastest_sid]['name']} cướp {stolen}đ của {game_state['players'][k_sid]['name']}!"}, broadcast=True)
+    # Thực thi Mark Steal (Người nhanh nhất cướp của King)
+    elif corrects:
+        fastest = min(corrects, key=lambda x: corrects[x]['t'])
+        if game['king_sid'] and fastest != game['king_sid']:
+            k = game['king_sid']
+            stolen = int(game['players'][k]['total'] * 0.1)
+            game['players'][k]['total'] -= stolen
+            game['players'][fastest]['total'] += stolen
+            emit('special_event', {'msg': f"⚡ MARK STEAL: {game['players'][fastest]['name']} cướp {stolen}đ từ {game['players'][k]['name']}!"}, broadcast=True)
+
+    if game['players']:
+        valid = {s: p for s, p in game['players'].items() if p['approved']}
+        if valid: game['king_sid'] = max(valid, key=lambda x: valid[x]['total'])
     
-    if game_state['players']:
-        game_state['king_sid'] = max(game_state['players'], key=lambda x: game_state['players'][x]['total'])
-    
-    game_state['active_q_idx'] += 1
+    game['active_idx'] += 1
     update_lb()
-    
     socketio.sleep(2.5)
-    if game_state['active_q_idx'] < 10 and game_state['is_running']:
-        send_q()
-    else:
-        game_state['is_running'] = False
-        emit('round_end', broadcast=True)
+    if game['active_idx'] < 10 and game['is_running']: send_q()
+    else: game['is_running'] = False; emit('round_done', broadcast=True)
 
 @socketio.on('submit_ans')
 def handle_sub(data):
     sid = request.sid
-    if sid not in game_state['players'] or sid in game_state['current_answers'] or not game_state['is_running']:
-        return
+    if sid in game['current_ans'] or not game['is_running']: return
+    elapsed = time.time() - game['start_t']
+    q = game['round_qs'][game['active_idx']]
     
-    elapsed = time.time() - game_state['start_time']
-    q = game_state['current_round_qs'][game_state['active_q_idx']]
-    user_ans = str(data['ans']).strip()
-    correct_ans = str(q['Đáp án đúng']).strip()
-    is_correct = (user_ans == correct_ans)
+    is_ok = str(data['ans']).strip().lower() == str(q['Đáp án đúng']).strip().lower()
+    pts = int(100 * (1 - elapsed/15.0)) if is_ok else 0
     
-    pts = int(100 * (1 - elapsed / 15.0)) if is_correct else 0
-    if pts < 0: pts = 0
-    
-    game_state['players'][sid]['total'] += pts
-    game_state['players'][sid]['last_pts'] = pts
-    game_state['players'][sid]['history'].append({
-        "vong": game_state['current_round_num'],
-        "cau": game_state['active_q_idx'] + 1,
-        "q": q['Câu hỏi'],
-        "options": [q['Đáp án A'], q['Đáp án B'], q['Đáp án C'], q['Đáp án D']],
-        "u": user_ans,
-        "c": correct_ans,
-        "ex": q['Giải thích'],
-        "pts": pts
+    game['players'][sid]['total'] += pts
+    game['players'][sid]['last'] = pts
+    game['players'][sid]['history'].append({
+        "vong": game['round_num'], "cau": game['active_idx']+1, "q": q['Câu hỏi'],
+        "opts": [str(q['Đáp án A']), str(q['Đáp án B']), str(q['Đáp án C']), str(q['Đáp án D'])],
+        "u": str(data['ans']), "c": str(q['Đáp án đúng']), "ex": str(q['Giải thích']), "pts": pts
     })
-    
-    game_state['current_answers'][sid] = {"correct": is_correct, "time": elapsed}
-    
+    game['current_ans'][sid] = {"ok": is_ok, "t": elapsed}
     update_lb()
-    
-    approved_count = len([p for p in game_state['players'].values() if p['approved']])
-    if len(game_state['current_answers']) >= approved_count:
-        game_state['timer_id'] += 1
+
+    appr_count = len([s for s, p in game['players'].items() if p['approved']])
+    if len(game['current_ans']) >= appr_count:
+        game['timer_id'] += 1
         process_end_q()
 
 def update_lb():
-    lb_data = [{"name": p['name'], "total": p['total'], "last": p['last_pts']} for p in game_state['players'].values() if p['approved']]
-    lb_sorted = sorted(lb_data, key=lambda x: x['total'], reverse=True)
-    emit('lb_update', lb_sorted, broadcast=True)
+    lb = [{"name": p['name'], "total": p['total'], "last": p['last']} for p in game['players'].values() if p['approved']]
+    emit('lb_update', sorted(lb, key=lambda x: x['total'], reverse=True), broadcast=True)
 
-@socketio.on('finish_all')
-def finish_all():
-    game_state['is_running'] = False
-    game_state['timer_id'] += 1
-    emit('kill_timers', broadcast=True)
-    emit('enable_review', broadcast=True)
+@socketio.on('finish_game')
+def finish():
+    game['is_running'] = False; game['timer_id'] += 1
+    emit('stop_timer', broadcast=True); emit('enable_review', broadcast=True)
 
-@socketio.on('get_review')
-def get_review():
-    sid = request.sid
-    if sid in game_state['players']:
-        emit('render_review', game_state['players'][sid]['history'], room=sid)
+@socketio.on('get_rev')
+def get_rev():
+    if request.sid in game['players']: emit('render_rev', game['players'][request.sid]['history'])
 
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+if __name__ == '__main__': socketio.run(app, host='0.0.0.0', port=5000)
