@@ -8,11 +8,10 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; }
+        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; --success: #27ae60; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
 
-        /* HEADER */
         header { 
             background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
             color: white; padding: 0 15px; height: 60px; 
@@ -22,31 +21,24 @@
         .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
         .logo img { height: 48px; width: auto; object-fit: contain; }
 
-        /* MAIN & CARDS */
         main { flex: 1; padding: 20px 10px; }
         .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; position: relative; }
         .hidden { display: none !important; }
         
-        /* TIMER BAR */
         .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
         #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
 
-        /* ANSWERS */
         .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
-        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: scale(1.01); }
+        
+        /* PHẦN DANH SÁCH USER TRONG LOBBY */
+        .user-list-box { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fcfcfc; min-height: 120px; max-height: 200px; overflow-y: auto; }
+        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 5px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        /* FOOTER CHUẨN MẪU ĐẦU */
+        /* FOOTER ĐÚNG MẪU */
         footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
         .footer-info b { color: var(--accent); }
 
-        /* EVENT OVERLAY (CƯỚP ĐIỂM) */
-        #event-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; color: white; text-align: center;
-        }
-        .steal-active { color: #ff3e3e; text-shadow: 0 0 20px red; animation: shake 0.1s infinite; }
-        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-10px)} 75%{transform:translateX(10px)} }
+        #event-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; }
     </style>
 </head>
 <body>
@@ -77,37 +69,43 @@
             <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold"><i class="fa fa-file-excel"></i> UPLOAD FILE</h5>
-                        <input type="file" id="file-input" class="form-control my-3">
+                        <h5 class="fw-bold text-center"><i class="fa fa-cloud-upload-alt"></i> BƯỚC 1: TẢI BỘ CÂU HỎI</h5>
+                        <input type="file" id="file-input" class="form-control my-4">
                         <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
                     
                     <div id="host-lobby" class="hidden text-center">
-                        <div class="alert alert-info py-2">Chào Giáo viên: <b id="host-welcome-name">Admin</b></div>
-                        <h5 class="fw-bold">MÃ PHÒNG: <span class="text-primary" id="display-pin" style="letter-spacing:2px">000000</span></h5>
-                        <div id="qr-display" class="my-2"></div>
-                        
-                        <div class="mt-4 border rounded p-3 bg-light">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0 fw-bold">YÊU CẦU THAM GIA (<span id="wait-count">0</span>)</h6>
-                                <button class="btn btn-sm btn-primary fw-bold" onclick="approveAll()">DUYỆT TẤT CẢ</button>
-                            </div>
-                            <div id="waiting-list" class="text-start" style="max-height: 150px; overflow-y: auto;">
+                        <div class="mb-2">Chào Giáo viên: <b id="host-welcome-name">...</b></div>
+                        <h5 class="fw-bold">MÃ PIN: <span class="text-primary fs-2" id="display-pin" style="letter-spacing:5px">000000</span></h5>
+                        <div id="qr-display" class="my-3"></div>
+
+                        <div class="row text-start mt-4">
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0 fw-bold text-danger">ĐANG CHỜ (<span id="wait-count">0</span>)</h6>
+                                    <button class="btn btn-xs btn-outline-danger p-1 fw-bold" style="font-size:10px" onclick="approveAll()">DUYỆT TẤT CẢ</button>
                                 </div>
+                                <div id="waiting-list" class="user-list-box"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-2 fw-bold text-success">ĐÃ VÀO PHÒNG</h6>
+                                <div id="approved-list" class="user-list-box"></div>
+                            </div>
                         </div>
-                        <button class="btn btn-danger btn-lg w-100 fw-bold mt-3" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
+
+                        <button class="btn btn-danger btn-lg w-100 fw-bold mt-4" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
                     </div>
 
                     <div id="host-live-monitor" class="hidden text-center">
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <h2 id="monitor-time" class="fw-bold">15</h2>
-                        <p id="monitor-q-text" class="fw-bold mt-3 text-primary h5"></p>
+                        <h2 id="monitor-time" class="fw-bold display-4">15</h2>
+                        <p id="monitor-q-text" class="fw-bold mt-3 h5 text-primary"></p>
                     </div>
                 </div>
             </div>
             <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="fw-bold text-center text-primary">BẢNG XẾP HẠNG LIVE</h5>
+                    <h5 class="fw-bold text-center text-primary border-bottom pb-2">BẢNG XẾP HẠNG LIVE</h5>
                     <div id="lb-host"></div>
                 </div>
             </div>
@@ -116,24 +114,24 @@
 
     <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
         <div id="user-login" class="card-custom shadow">
-            <h4 class="text-center mb-4">THÍ SINH ĐĂNG NHẬP</h4>
-            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="NHẬP MÃ PIN">
-            <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn...">
-            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
+            <h4 class="text-center mb-4 fw-bold">NHẬP THÔNG TIN</h4>
+            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="MÃ PIN PHÒNG">
+            <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Nhập tên của bạn...">
+            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">GỬI YÊU CẦU THAM GIA</button>
         </div>
         <div id="user-waiting" class="hidden card-custom text-center py-5">
-            <div class="mb-3">Chào thí sinh: <b id="user-welcome-name">...</b></div>
-            <div class="spinner-border text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold">ĐANG ĐỢI DUYỆT</h4>
-            <p class="text-muted small">Vui lòng chờ giáo viên cho phép vào phòng</p>
+            <h5 class="mb-3">Chào thí sinh: <b id="user-welcome-name">...</b></h5>
+            <div class="spinner-grow text-warning mb-3"></div>
+            <h4 id="wait-status-text" class="fw-bold">CHỜ DUYỆT...</h4>
+            <p class="text-muted">Tên bạn đã hiện trên màn hình Giáo viên.</p>
         </div>
         <div id="user-quiz-area" class="hidden card-custom">
             <div class="timer-container"><div id="user-timer-bar"></div></div>
             <div class="d-flex justify-content-between mb-2">
-                <span id="q-idx" class="badge bg-primary">Câu 1/10</span>
-                <span id="u-score" class="fw-bold text-success">0đ</span>
+                <span id="q-idx" class="badge bg-primary px-3 py-2">Câu 1/10</span>
+                <span id="u-score" class="fw-bold text-success h5 mb-0">0đ</span>
             </div>
-            <h5 id="q-text" class="fw-bold mb-4"></h5>
+            <h5 id="q-text" class="fw-bold mb-4" style="line-height:1.6"></h5>
             <div id="q-options"></div>
         </div>
     </div>
@@ -147,10 +145,9 @@
 </footer>
 
 <script>
-    // Hàm Duyệt Tất Cả được thêm vào script để Host điều khiển
     function approveAll() {
-        const list = document.getElementById('waiting-list');
-        const buttons = list.querySelectorAll('button');
+        const waitingList = document.getElementById('waiting-list');
+        const buttons = waitingList.querySelectorAll('button');
         buttons.forEach(btn => btn.click());
     }
 </script>
