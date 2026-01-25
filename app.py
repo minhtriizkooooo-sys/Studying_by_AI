@@ -5,14 +5,14 @@ from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ai_quiz_ultra_2026'
+# Sửa lại async_mode thành gevent để khớp với môi trường deploy của bạn
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# Quản lý trạng thái trò chơi
 game_state = {
     "all_questions": [],
     "current_round_qs": [],
     "used_q_indices": set(),
-    "players": {}, # {sid: {name, score, joined}}
+    "players": {},
     "is_started": False,
     "current_round": 1,
     "pin": None,
@@ -46,8 +46,8 @@ def index():
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
-        filename = data['name']
         content = base64.b64decode(data['content'].split(",")[1])
+        filename = data['name']
         ext = filename.split('.')[-1].lower()
         if ext in ['csv', 'xlsx']:
             df = pd.read_csv(io.BytesIO(content)) if ext == 'csv' else pd.read_excel(io.BytesIO(content))
@@ -57,7 +57,7 @@ def handle_upload(data):
         qr_code = generate_qr(f"{request.host_url}?pin={game_state['pin']}")
         emit('qr_ready', {'qr': qr_code, 'pin': game_state['pin']}, broadcast=True)
     except Exception as e:
-        emit('error', {'msg': f"Lỗi file: {str(e)}"})
+        emit('error', {'msg': f"Lỗi xử lý file: {str(e)}"})
 
 @socketio.on('join_game')
 def join_game(data):
@@ -66,7 +66,7 @@ def join_game(data):
         join_room(game_state['room_id'])
         emit('player_waiting', {'name': data['name'], 'sid': request.sid}, broadcast=True)
     else:
-        emit('error', {'msg': "Mã PIN sai!"})
+        emit('error', {'msg': "Mã PIN không đúng!"})
 
 @socketio.on('host_approve_player')
 def approve_player(data):
@@ -82,7 +82,7 @@ def start_round():
         game_state['active_question_index'] = 0
         send_question()
     else:
-        emit('error', {'msg': "Không đủ câu hỏi!"})
+        emit('error', {'msg': "Không đủ câu hỏi trong kho!"})
 
 def send_question():
     idx = game_state['active_question_index']
@@ -108,36 +108,32 @@ def handle_ans(data):
         points = 100 + max(0, int(30 - elapsed))
         game_state['players'][sid]['score'] += points
         
-        # Kiểm tra người nhanh nhất để CƯỚP ĐIỂM
-        if game_state['first_correct_sid'] is None and elapsed < 7:
+        if game_state['first_correct_sid'] is None and elapsed < 6:
             game_state['first_correct_sid'] = sid
-            # Tìm đối tượng để cướp (người cao điểm nhất không phải mình)
-            victims = sorted([s for s in game_state['players'] if s != sid], 
-                            key=lambda s: game_state['players'][s]['score'], reverse=True)
-            if victims and game_state['players'][victims[0]]['score'] > 100:
-                emit('trigger_lucky_spin', {'victim_sid': victims[0], 'victim_name': game_state['players'][victims[0]]['name']}, room=sid)
-
-    # Tự động chuyển câu sau khi mọi người trả lời hoặc Host điều khiển (đơn giản hóa bằng timer client)
+            targets = sorted([s for s in game_state['players'] if s != sid], 
+                           key=lambda s: game_state['players'][s]['score'], reverse=True)
+            if targets and game_state['players'][targets[0]]['score'] > 50:
+                emit('trigger_lucky_spin', {'victim_sid': targets[0], 'victim_name': game_state['players'][targets[0]]['name']}, room=sid)
+    
     update_lb()
-
-@socketio.on('next_question_request')
-def next_q():
-    game_state['active_question_index'] += 1
-    send_question()
 
 @socketio.on('execute_steal')
 def execute_steal(data):
     stealer_sid = request.sid
     victim_sid = data.get('victim_sid')
     percent = data.get('percent')
-    
     if victim_sid in game_state['players']:
         stolen = int(game_state['players'][victim_sid]['score'] * (percent / 100))
         game_state['players'][victim_sid]['score'] -= stolen
         game_state['players'][stealer_sid]['score'] += stolen
-        msg = f"⚡ {game_state['players'][stealer_sid]['name']} đã cướp {stolen} điểm từ {game_state['players'][victim_sid]['name']}!"
+        msg = f"⚡ {game_state['players'][stealer_sid]['name']} cướp {stolen} điểm từ {game_state['players'][victim_sid]['name']}!"
         emit('game_announcement', {'msg': msg}, broadcast=True)
         update_lb()
+
+@socketio.on('next_question_request')
+def next_q():
+    game_state['active_question_index'] += 1
+    send_question()
 
 def update_lb():
     lb = sorted([{"name": v['name'], "score": v['score']} for v in game_state['players'].values()], key=lambda x: x['score'], reverse=True)
@@ -145,4 +141,3 @@ def update_lb():
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
-
