@@ -6,8 +6,59 @@
     <title>STUDYING BY AI 2026</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        :root { --primary: #0066cc; --primary-dark: #004a7c; --bg: #f4f7f9; --accent: #f39c12; --danger: #e74c3c; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* HEADER */
+        header { 
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary)); 
+            color: white; padding: 0 15px; height: 60px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 16px; }
+        .logo img { height: 48px; width: auto; object-fit: contain; }
+
+        /* MAIN & CARDS */
+        main { flex: 1; padding: 20px 10px; }
+        .card-custom { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border: none; position: relative; }
+        .hidden { display: none !important; }
+        
+        /* TIMER BAR */
+        .timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+        #user-timer-bar, #host-timer-bar { width: 100%; height: 100%; background: var(--danger); transition: width 1s linear; }
+
+        /* ANSWERS */
+        .btn-ans { text-align: left; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #eee; background: white; width: 100%; transition: 0.2s; font-weight: 500; }
+        .btn-ans:hover:not(:disabled) { border-color: var(--primary); background: #f0f7ff; transform: scale(1.01); }
+        .btn-ans:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        /* PIN & BADGE */
+        .pin-display { font-size: 32px; font-weight: bold; color: var(--primary); letter-spacing: 5px; margin: 10px 0; }
+        .badge-round { position: absolute; top: 10px; right: 10px; background: var(--accent); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; }
+
+        /* OVERLAY SỰ KIỆN (Dùng để hiện Cướp điểm/Spin) */
+        #event-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92); z-index: 9999; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; color: white; text-align: center;
+        }
+        .steal-active { color: #ff3e3e; text-shadow: 0 0 20px red; animation: ultra-shake 0.1s infinite; }
+        @keyframes ultra-shake {
+            0% { transform: translate(0,0); }
+            25% { transform: translate(-5px, 5px); }
+            50% { transform: translate(5px, -5px); }
+            75% { transform: translate(-5px, -5px); }
+            100% { transform: translate(0,0); }
+        }
+
+        /* FOOTER - ĐÚNG CHUẨN MẪU ĐẦU */
+        footer { background: #003366; color: white; padding: 15px; text-align: center; font-size: 14px; margin-top: auto; border-top: 4px solid var(--accent); }
+        .footer-info b { color: var(--accent); }
+    </style>
 </head>
 <body>
 
@@ -16,61 +67,47 @@
         <img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'">
         <span>STUDYING BY AI 2026</span>
     </div>
-    <div onclick="location.reload()" style="cursor:pointer;"><i class="fa fa-sync-alt"></i></div>
+    <div onclick="location.reload()" style="cursor:pointer"><i class="fa fa-sync-alt"></i></div>
 </header>
 
-<main class="container mt-4">
+<main class="container">
+    <div id="event-overlay" class="hidden"></div>
+
     <div id="role-selection" class="row justify-content-center py-5">
-        <div class="col-md-6 card-custom text-center">
+        <div class="col-md-6 card-custom text-center shadow">
             <h3 class="fw-bold text-primary mb-4">HỆ THỐNG TRẮC NGHIỆM AI</h3>
             <div class="d-grid gap-3">
-                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">GIÁO VIÊN (HOST)</button>
-                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">THÍ SINH (USER)</button>
+                <button class="btn btn-primary btn-lg py-3 fw-bold" onclick="selectRole('host')">VAI TRÒ: GIÁO VIÊN (HOST)</button>
+                <button class="btn btn-outline-dark btn-lg py-3 fw-bold" onclick="selectRole('user')">VAI TRÒ: THÍ SINH (USER)</button>
             </div>
         </div>
     </div>
 
     <div id="host-ui" class="hidden">
         <div class="row">
-            <div class="col-md-8">
+            <div class="col-md-7">
                 <div class="card-custom">
                     <div id="host-setup">
-                        <h5 class="fw-bold mb-3">Tải lên Excel câu hỏi</h5>
-                        <input type="file" id="file-input" class="form-control" accept=".xlsx, .xls">
+                        <h5 class="fw-bold"><i class="fa fa-file-excel"></i> UPLOAD FILE</h5>
+                        <input type="file" id="file-input" class="form-control my-3">
+                        <div id="host-status" class="hidden text-center"><div class="spinner-border text-primary"></div></div>
                     </div>
-
                     <div id="host-lobby" class="hidden text-center">
-                        <h6 class="text-muted">MÃ PHÒNG CHƠI</h6>
-                        <div class="h1 fw-bold text-primary mb-3" id="display-pin">------</div>
-                        <div id="qr-display" class="mb-4"></div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <h6>DANH SÁCH CHỜ DUYỆT:</h6>
-                            <button class="btn btn-sm btn-warning" onclick="approveAll()">DUYỆT TẤT CẢ</button>
-                        </div>
-                        <div id="waiting-list" class="border rounded p-2 mb-3" style="max-height: 200px; overflow-y: auto;"></div>
-                        <button id="btn-start" class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()" disabled>BẮT ĐẦU VÒNG 1</button>
+                        <div class="pin-display" id="display-pin">000000</div>
+                        <div id="qr-display" class="my-3"></div>
+                        <div id="waiting-list" class="text-start mb-3" style="max-height: 200px; overflow-y: auto;"></div>
+                        <button class="btn btn-danger btn-lg w-100 fw-bold" onclick="startRound()">BẮT ĐẦU VÒNG <span id="current-round-text">1</span></button>
                     </div>
-
                     <div id="host-live-monitor" class="hidden text-center">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge bg-primary px-3 py-2">LIVE MONITOR</span>
-                            <h2 id="monitor-time" class="text-danger fw-bold m-0">15</h2>
-                        </div>
                         <div class="timer-container"><div id="host-timer-bar"></div></div>
-                        <h4 id="monitor-q-text" class="fw-bold mb-4"></h4>
-                        <div id="monitor-options" class="row g-3"></div>
-                    </div>
-
-                    <div id="host-review-screen" class="hidden">
-                        <h4 class="fw-bold text-primary mb-3">TỔNG KẾT VÒNG CHƠI</h4>
-                        <div id="host-review-list" style="max-height: 400px; overflow-y: auto;"></div>
-                        <button class="btn btn-primary w-100 mt-3" onclick="startRound()">TIẾP TỤC VÒNG TIẾP THEO</button>
+                        <h2 id="monitor-time">15</h2>
+                        <p id="monitor-q-text" class="fw-bold mt-3 text-secondary"></p>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-5">
                 <div class="card-custom">
-                    <h5 class="text-center border-bottom pb-2 fw-bold text-primary">BẢNG XẾP HẠNG LIVE</h5>
+                    <h5 class="fw-bold text-center text-primary border-bottom pb-2">BẢNG XẾP HẠNG LIVE</h5>
                     <div id="lb-host"></div>
                 </div>
             </div>
@@ -78,41 +115,35 @@
     </div>
 
     <div id="user-ui" class="hidden mx-auto" style="max-width: 500px;">
-        <div id="user-login" class="card-custom shadow-sm">
-            <h4 class="text-center mb-4 fw-bold">NHẬP THÔNG TIN</h4>
-            <input type="text" id="user-pin" class="form-control mb-3 text-center fw-bold" placeholder="MÃ PIN">
-            <input type="text" id="user-name" class="form-control mb-3" placeholder="TÊN CỦA BẠN">
-            <button class="btn btn-primary btn-lg w-100" onclick="userJoin()">VÀO PHÒNG</button>
+        <div id="user-login" class="card-custom shadow">
+            <h4 class="text-center mb-4">THÔNG TIN</h4>
+            <input type="text" id="user-pin" class="form-control form-control-lg mb-3 text-center fw-bold" placeholder="NHẬP MÃ PIN">
+            <input type="text" id="user-name" class="form-control form-control-lg mb-3" placeholder="Tên của bạn...">
+            <button class="btn btn-primary w-100 btn-lg fw-bold" onclick="userJoin()">THAM GIA</button>
         </div>
-
         <div id="user-waiting" class="hidden card-custom text-center py-5">
             <div class="spinner-grow text-warning mb-3"></div>
-            <h4 id="wait-status-text" class="fw-bold">ĐANG CHỜ DUYỆT...</h4>
+            <h4 id="wait-status-text">ĐÃ GỬI YÊU CẦU</h4>
+            <p>Vui lòng đợi Giáo viên duyệt...</p>
         </div>
-
         <div id="user-quiz-area" class="hidden card-custom">
             <div class="timer-container"><div id="user-timer-bar"></div></div>
-            <div class="d-flex justify-content-between mb-3">
-                <span id="q-idx" class="badge bg-primary">Câu 0/10</span>
-                <div>
-                    <span id="u-score" class="fw-bold text-success me-2">0đ</span>
-                    <span id="u-rank" class="badge bg-info"></span>
-                </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span id="q-idx" class="badge bg-primary">Câu 1/10</span>
+                <span id="u-score" class="fw-bold text-success">0đ</span>
             </div>
-            <h5 id="q-text" class="fw-bold mb-4" style="line-height: 1.5;"></h5>
+            <h5 id="q-text" class="fw-bold mb-4"></h5>
             <div id="q-options"></div>
         </div>
-
-        <div id="user-review-screen" class="hidden card-custom">
-            <h4 class="fw-bold text-center text-success mb-4">KẾT QUẢ CỦA BẠN</h4>
-            <div id="user-review-list"></div>
-        </div>
-    </div>
-
-    <div id="event-overlay" class="hidden">
-        <div id="event-content"></div>
     </div>
 </main>
+
+<footer>
+    <div class="footer-info">
+        Developer: <b>Lại Nguyễn Minh Trí</b> | Hotline: <b>84-908-08-3566</b><br>
+        <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
+    </div>
+</footer>
 
 <script src="/static/js/main.js"></script>
 </body>
