@@ -265,23 +265,25 @@
     }
 
     socket.on('render_review', data => {
-        const html = data.map(it => `
-            <div class="dash-card border-start border-5 ${it.u === it.c ? 'border-success' : 'border-danger'} mb-3">
-                <h5 class="fw-bold">Câu ${it.cau} (Vòng ${it.vong}): ${it.q}</h5>
-                <div class="ms-3 my-3">
-                    ${it.options.map(o => `<div>• ${o}</div>`).join('')}
-                </div>
-                <div class="bg-light p-3 rounded">
-                    <p class="mb-1"><b>Bạn đã chọn:</b> ${it.u}</p>
-                    <p class="mb-1"><b>Đáp án đúng:</b> ${it.c}</p>
-                    <hr>
-                    <p class="mb-0 text-primary"><b>Giải thích:</b> ${it.ex}</p>
-                </div>
-                <div class="mt-2 text-end small">Điểm nhận được: <b>+${it.pts}</b></div>
+    const html = data.map(it => `
+        <div class="dash-card border-start border-5 ${it.u === it.c ? 'border-success' : 'border-danger'} mb-3">
+            <h5 class="fw-bold">Câu ${it.cau} (Vòng ${it.vong}): ${it.q}</h5>
+            <div class="ms-3 my-3">
+                ${it.options.map(o => `
+                    <div class="py-1">• ${o}</div>
+                `).join('')}
             </div>
-        `).join('');
-        document.getElementById('review-data').innerHTML = html || '<p class="text-center">Chưa có dữ liệu trả lời.</p>';
-    });
+            <div class="bg-light p-3 rounded">
+                <p class="mb-1"><b>Bạn đã chọn:</b> ${it.u}</p>
+                <p class="mb-1"><b>Đáp án đúng:</b> ${it.c}</p>
+                <hr>
+                <p class="mb-0 text-primary"><b>Giải thích:</b> ${it.ex}</p>
+            </div>
+            <div class="mt-2 text-end"><span class="badge bg-dark">Điểm: +${it.pts}</span></div>
+        </div>
+    `).join('');
+    document.getElementById('review-data').innerHTML = html || '<p class="text-center">Chưa có dữ liệu.</p>';
+});
 
     socket.on('kill_timers', () => clearInterval(clockInt));
 </script>
