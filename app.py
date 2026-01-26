@@ -83,7 +83,7 @@ def send_q():
         game_state['is_running'] = False
         res = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
         socketio.emit('game_over', {'results': res})
-        socketio.emit('enable_review', broadcast=True)
+        socketio.emit('enable_review')  # Đã bỏ broadcast=True
         return
 
     game_state['submitted_count'] = 0
@@ -154,13 +154,17 @@ def handle_sub(data):
 
 @socketio.on('times_up')
 def handle_timeout():
+    idx = game_state['active_q_idx']
+    if idx >= len(game_state['current_round_qs']) or idx < 0:
+        return  # Tránh IndexError khi round đã kết thúc
+
     for sid, p in game_state['players'].items():
-        if p['approved'] and len(p['history']) <= game_state['active_q_idx']:
-            q = game_state['current_round_qs'][game_state['active_q_idx']]
+        if p['approved'] and len(p['history']) <= idx:
+            q = game_state['current_round_qs'][idx]
             correct_key = str(q['Đáp án đúng']).strip().upper()
             correct_content = str(q.get(f"Đáp án {correct_key}", ""))
             p['history'].append({
-                "idx": game_state['active_q_idx']+1,
+                "idx": idx+1,
                 "q": q['Câu hỏi'],
                 "u": "HẾT GIỜ",
                 "c": correct_content,
