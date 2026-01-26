@@ -9,7 +9,6 @@
     <style>
         :root { --navy: #001f3f; --orange: #FF4500; }
         
-        /* Cấu trúc để cố định Header/Footer và cuộn ở giữa */
         html, body { 
             height: 100%; 
             margin: 0; 
@@ -17,7 +16,7 @@
             flex-direction: column; 
             background: #f4f7f6; 
             font-family: 'Segoe UI', sans-serif; 
-            overflow: hidden; /* Ngăn trình duyệt cuộn cả trang ngoài ý muốn */
+            overflow: hidden; 
         }
         
         header { 
@@ -29,7 +28,6 @@
         
         .logo-area img { height: 45px; width: auto; }
         
-        /* Khu vực trung tâm sẽ tự động có thanh cuộn nếu nội dung dài */
         main { 
             flex: 1; 
             padding: 25px; 
@@ -226,19 +224,23 @@
             </div>`;
     });
 
+    // FIX 1: Chuyển màn hình User ngay khi duyệt
     socket.on('approved_success', () => {
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
             document.getElementById('user-quiz').classList.remove('hidden');
+            document.getElementById('q-body').innerText = "Đã được duyệt! Đang chờ câu hỏi...";
         }
     });
 
+    // FIX 2: Host nhìn thấy đầy đủ nội dung câu hỏi
     socket.on('new_q', d => {
         clearInterval(clockInt);
         if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = ""; 
         if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = ""; 
         
         if (myRole === 'user') {
+            document.getElementById('user-quiz').classList.remove('hidden'); // Đảm bảo hiện nếu chưa hiện
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
@@ -255,8 +257,19 @@
                 box.appendChild(btn);
             });
         } else {
+            // Hiển thị chi tiết cho Host quản lý
             document.getElementById('start-btn').classList.add('hidden');
-            document.getElementById('host-q-content').innerHTML = `<h4>CÂU ${d.idx}/${d.total}</h4><h2 class="fw-bold">${d.q['Câu hỏi']}</h2>`;
+            document.getElementById('host-q-content').innerHTML = `
+                <div class="text-start">
+                    <h4 class="orange-text">ĐANG THI: CÂU ${d.idx}/${d.total}</h4>
+                    <h3 class="fw-bold">${d.q['Câu hỏi']}</h3>
+                    <div class="row mt-3">
+                        <div class="col-6">A: ${d.q['Đáp án A']}</div>
+                        <div class="col-6">B: ${d.q['Đáp án B']}</div>
+                        <div class="col-6">C: ${d.q['Đáp án C']}</div>
+                        <div class="col-6">D: ${d.q['Đáp án D']}</div>
+                    </div>
+                </div>`;
         }
         startCountdown();
     });
@@ -280,9 +293,7 @@
         document.getElementById('my-pts').innerText = d.total;
         document.getElementById('lucky-event-display').innerText = d.event || "";
         const gainBox = document.getElementById('last-pts-gain');
-        gainBox.innerHTML = d.correct ? 
-            `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : 
-            `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
+        gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
 
     socket.on('lb_update', d => {
@@ -300,8 +311,7 @@
             if(res[0]) document.getElementById('name-1').innerText = res[0].name;
             if(res[1]) document.getElementById('name-2').innerText = res[1].name;
             if(res[2]) document.getElementById('name-3').innerText = res[2].name;
-            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`
-                <div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
+            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
         }
     });
 
