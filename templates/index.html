@@ -8,33 +8,50 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         :root { --navy: #001f3f; --orange: #FF4500; }
-        html, body { min-height: 100%; margin: 0; display: flex; flex-direction: column; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         
-        /* Giữ UI Header của bạn nhưng thêm flex-wrap để không bị vỡ trên mobile */
+        /* Cấu trúc để cố định Header/Footer và cuộn ở giữa */
+        html, body { 
+            height: 100%; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            background: #f4f7f6; 
+            font-family: 'Segoe UI', sans-serif; 
+            overflow: hidden; /* Ngăn trình duyệt cuộn cả trang ngoài ý muốn */
+        }
+        
         header { 
             background: var(--navy); color: white; padding: 10px 40px; 
             display: grid; grid-template-columns: 150px 1fr 150px; 
             align-items: center; border-bottom: 5px solid var(--orange); 
             flex-shrink: 0; 
         }
+        
         .logo-area img { height: 45px; width: auto; }
         
-        /* Main area cho phép cuộn trên mobile */
-        main { flex: 1; padding: 25px; }
+        /* Khu vực trung tâm sẽ tự động có thanh cuộn nếu nội dung dài */
+        main { 
+            flex: 1; 
+            padding: 25px; 
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+        }
         
-        footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.9rem; }
+        footer { 
+            background: var(--navy); color: white; padding: 15px; 
+            text-align: center; border-top: 4px solid var(--orange); 
+            flex-shrink: 0; font-size: 0.9rem; 
+        }
+
         .orange-text { color: var(--orange) !important; font-weight: bold; }
         .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
         .timer-circle { font-size: 3rem; font-weight: 800; color: var(--orange); }
-        
-        /* Tối ưu nút bấm cho cảm ứng điện thoại */
         .btn-ans { border: 2px solid #eee; background: white; padding: 18px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 12px; font-weight: 600; transition: 0.2s; }
         .btn-ans:hover:not(:disabled) { border-color: var(--navy); background: #f8f9fa; }
-        
         .hidden { display: none !important; }
         .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-        
         .event-msg { font-size: 1.5rem; font-weight: bold; color: #d63384; animation: shake 0.5s ease-in-out infinite; margin-bottom: 10px; min-height: 2.2rem; }
+        
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-1deg); } 75% { transform: translateX(5px) rotate(1deg); } }
 
         .podium { display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin: 30px 0; }
@@ -44,7 +61,6 @@
         .rank-3 { height: 70px; background: #CD7F32; order: 3; }
         .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; }
 
-        /* Media Query để fix UI trên điện thoại nhỏ */
         @media (max-width: 768px) {
             header { display: flex; flex-direction: column; padding: 10px; }
             .logo-area { margin-bottom: 5px; }
@@ -53,10 +69,9 @@
         }
 
         @media print {
-            .no-print, button, input, header, footer, .logo-area { display: none !important; }
-            main { padding: 0; overflow: visible; }
-            .dash-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
-            body { background: white; overflow: visible; }
+            .no-print, header, footer { display: none !important; }
+            main { overflow: visible; padding: 0; }
+            body { overflow: visible; background: white; }
         }
     </style>
 </head>
@@ -65,6 +80,7 @@
 <header class="no-print">
     <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
     <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
+    <div></div>
 </header>
 
 <main class="container">
@@ -211,7 +227,6 @@
     });
 
     socket.on('approved_success', () => {
-        // Chỉ thực hiện chuyển màn hình nếu là User
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
             document.getElementById('user-quiz').classList.remove('hidden');
@@ -246,7 +261,6 @@
         startCountdown();
     });
 
-    // ... (Các hàm startCountdown, lb_update, score_update, game_over giữ nguyên của bạn) ...
     function startCountdown() {
         let t = 15.0;
         clockInt = setInterval(() => {
@@ -295,7 +309,6 @@
         document.getElementById('qr-display').classList.remove('hidden');
         document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
         document.getElementById('pin-val').innerText = d.pin;
-        // Reset danh sách chờ khi có file mới
         document.getElementById('wait-box').innerHTML = "<b>Danh sách chờ:</b><br>";
     });
 
@@ -306,7 +319,6 @@
         document.getElementById('wait-box').appendChild(div);
     });
 
-    // Giữ nguyên các hàm review, csv-file onchange khác của bạn...
     socket.on('render_host_review', data => {
         document.getElementById('host-review-data').innerHTML = data.map(it => `
             <div class="p-3 border-bottom">
@@ -314,16 +326,20 @@
                 <span class="text-success fw-bold">Đúng: ${it.c}</span> | <span class="text-danger fw-bold">Sai: ${it.w}</span>
             </div>`).join('');
     });
+
     function showPodium() {
         document.getElementById('host-review-section').classList.add('hidden');
         document.getElementById('host-podium-section').classList.remove('hidden');
     }
+
     socket.on('enable_review', () => { if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden'); });
+
     function openReview() {
         document.getElementById('user-quiz').classList.add('hidden');
         document.getElementById('review-screen').classList.remove('hidden');
         socket.emit('get_review');
     }
+
     socket.on('render_review', data => {
         const container = document.getElementById('review-data');
         container.innerHTML = data.map(it => `
@@ -336,9 +352,11 @@
                 <div class="p-2 rounded bg-light mb-2">
                     <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
                     <p class="mb-0 text-success">Đáp án đúng: <b>${it.c}</b></p>
+                    <p class="mb-1 mt-2 small italic">Giải thích: ${it.ex}</p>
                 </div>
             </div>`).join('');
     });
+
     document.getElementById('csv-file').onchange = e => {
         const reader = new FileReader();
         reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
