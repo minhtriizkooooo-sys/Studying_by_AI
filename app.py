@@ -103,11 +103,10 @@ def handle_sub(data):
     q_idx = game_state['active_q_idx']
     q = game_state['current_round_qs'][q_idx]
     
-    user_choice_letter = data['letter'] # A, B, C, D
-    user_ans_content = str(data['ans']).strip()
+    user_ans = str(data['ans']).strip()
     correct_key = str(q['Đáp án đúng']).strip().upper()
     correct_content = str(q.get(f'Đáp án {correct_key}', '')).strip()
-    is_correct = (user_ans_content == correct_content)
+    is_correct = (user_ans == correct_content)
 
     elapsed = time.time() - game_state['start_time']
     base = max(10, int(100 * (1 - elapsed/15))) if is_correct else 0
@@ -115,9 +114,11 @@ def handle_sub(data):
     event = ""
     if is_correct:
         game_state['stats'][q_idx]['correct'] += 1
+        # Logic Top 1 nhân đôi
         if sid == game_state['leader_sid']:
             base *= 2
             event = "🎡 LUCKY SPIN (Top 1): X2 ĐIỂM!"
+        # Logic Mark Steal cho người nhanh nhất (không phải Top 1)
         elif game_state['fastest_sid_this_round'] is None:
             game_state['fastest_sid_this_round'] = sid
             base += 50
@@ -126,17 +127,7 @@ def handle_sub(data):
         game_state['stats'][q_idx]['wrong'] += 1
 
     p['total'] += base
-    # Lưu toàn bộ thông tin phục vụ review
-    p['history'].append({
-        "idx": q_idx+1, 
-        "q": q['Câu hỏi'], 
-        "A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D'],
-        "u_choice": user_choice_letter,
-        "c_choice": correct_key,
-        "pts": base, 
-        "ex": q.get('Giải thích',''), 
-        "event": event
-    })
+    p['history'].append({"idx": q_idx+1, "q": q['Câu hỏi'], "u": user_ans, "c": correct_content, "pts": base, "ex": q.get('Giải thích',''), "event": event})
     
     emit('score_update', {'total': p['total'], 'last': base, 'correct': is_correct, 'event': event})
     
@@ -151,14 +142,14 @@ def handle_sub(data):
 
 @socketio.on('times_up')
 def handle_timeout():
+    # Điền lịch sử trống cho những người chưa trả lời để tránh lỗi Review
     for sid, p in game_state['players'].items():
         if p['approved'] and len(p['history']) <= game_state['active_q_idx']:
             q = game_state['current_round_qs'][game_state['active_q_idx']]
             correct_key = str(q['Đáp án đúng']).strip().upper()
             p['history'].append({
                 "idx": game_state['active_q_idx']+1, "q": q['Câu hỏi'], 
-                "A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D'],
-                "u_choice": "KHÔNG CHỌN", "c_choice": correct_key, 
+                "u": "HẾT GIỜ", "c": str(q.get(f"Đáp án {correct_key}")), 
                 "pts": 0, "ex": q.get('Giải thích',''), "event": ""
             })
     next_question_auto()
@@ -179,19 +170,20 @@ def get_review():
 
 @socketio.on('get_host_review')
 def get_host_review():
+    # Host review chi tiết từng người chọn gì
     report = []
     for i, q in enumerate(game_state['current_round_qs']):
         user_details = []
         for p_sid, p in game_state['players'].items():
             if len(p['history']) > i:
-                hist = p['history'][i]
-                user_details.append({"name": p['name'], "choice": hist['u_choice'], "pts": hist['pts']})
+                ans = p['history'][i]['u']
+                is_right = (ans == p['history'][i]['c'])
+                user_details.append({"name": p['name'], "ans": ans, "correct": is_right})
         
         correct_key = str(q['Đáp án đúng']).strip().upper()
         report.append({
             "idx": i+1, "q": q['Câu hỏi'], 
-            "A": q['Đáp án A'], "B": q['Đáp án B'], "C": q['Đáp án C'], "D": q['Đáp án D'],
-            "c_choice": correct_key,
+            "c_ans": q.get(f'Đáp án {correct_key}'),
             "ex": q.get('Giải thích',''),
             "users": user_details
         })
@@ -199,4 +191,3 @@ def get_host_review():
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
-
