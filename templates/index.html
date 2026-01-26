@@ -21,7 +21,7 @@
         .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
         
         /* Hiệu ứng may mắn */
-        .event-msg { font-size: 1.5rem; font-weight: bold; color: #d63384; animation: shake 0.5s ease-in-out infinite; margin-bottom: 10px; }
+        .event-msg { font-size: 1.5rem; font-weight: bold; color: #d63384; animation: shake 0.5s ease-in-out infinite; margin-bottom: 10px; min-height: 2.2rem; }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-5px) rotate(-1deg); }
@@ -125,11 +125,13 @@
     </div>
 
     <div id="review-screen" class="hidden">
-        <div class="d-flex justify-content-between mb-4">
-            <h2>KẾT QUẢ CHI TIẾT</h2>
-            <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
+                <h2 class="m-0 text-navy">KẾT QUẢ CHI TIẾT</h2>
+                <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
+            </div>
+            <div id="review-data"></div>
         </div>
-        <div id="review-data"></div>
     </div>
 </main>
 
@@ -142,7 +144,11 @@
     const socket = io();
     let myRole = "", myName = "", clockInt;
 
-    function init(r) { myRole = r; document.getElementById('role-select').classList.add('hidden'); document.getElementById(r + '-area').classList.remove('hidden'); }
+    function init(r) { 
+        myRole = r; 
+        document.getElementById('role-select').classList.add('hidden'); 
+        document.getElementById(r + '-area').classList.remove('hidden'); 
+    }
     
     function join() {
         myName = document.getElementById('name-in').value.trim();
@@ -176,11 +182,15 @@
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
             ['A','B','C','D'].forEach(l => {
-                const btn = document.createElement('button'); btn.className = 'btn-ans';
+                const btn = document.createElement('button'); 
+                btn.className = 'btn-ans';
                 btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
                 btn.onclick = () => {
+                    // Gửi cả chữ cái và nội dung để server so khớp linh hoạt
                     socket.emit('submit_ans', {ans: d.q['Đáp án '+l]});
                     Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true);
+                    btn.style.borderColor = 'var(--navy)';
+                    btn.style.background = '#e9ecef';
                 };
                 box.appendChild(btn);
             });
@@ -195,7 +205,9 @@
         document.getElementById('my-pts').innerText = d.total;
         document.getElementById('lucky-event-display').innerText = d.event || "";
         const gainBox = document.getElementById('last-pts-gain');
-        gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
+        gainBox.innerHTML = d.correct ? 
+            `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : 
+            `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
 
     socket.on('game_over', d => {
@@ -206,7 +218,11 @@
             if(res[0]) document.getElementById('name-1').innerText = res[0].name;
             if(res[1]) document.getElementById('name-2').innerText = res[1].name;
             if(res[2]) document.getElementById('name-3').innerText = res[2].name;
-            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
+            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`
+                <div class="lb-item">
+                    <span>#${i+1} ${p.name}</span>
+                    <b>${p.total}đ</b>
+                </div>`).join('');
         }
     });
 
@@ -214,7 +230,11 @@
         let t = 15.0;
         clockInt = setInterval(() => {
             t -= 0.1;
-            if (t <= 0) { t = 0; clearInterval(clockInt); if(myRole==='host') socket.emit('times_up'); }
+            if (t <= 0) { 
+                t = 0; 
+                clearInterval(clockInt); 
+                if(myRole==='host') socket.emit('times_up'); 
+            }
             const val = t.toFixed(1);
             if(document.getElementById('clock')) document.getElementById('clock').innerText = val;
             if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
@@ -227,7 +247,12 @@
         if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
     });
 
-    socket.on('enable_review', () => { if(myRole==='user') document.getElementById('review-btn').classList.remove('hidden'); });
+    // Kích hoạt nút review khi vòng thi kết thúc
+    socket.on('enable_review', () => { 
+        if(myRole === 'user') {
+            document.getElementById('review-btn').classList.remove('hidden'); 
+        }
+    });
 
     function openReview() {
         document.getElementById('user-quiz').classList.add('hidden');
@@ -236,16 +261,25 @@
     }
 
     socket.on('render_review', data => {
-        document.getElementById('review-data').innerHTML = data.map(it => `
+        const container = document.getElementById('review-data');
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="alert alert-info">Không có dữ liệu bài làm.</div>';
+            return;
+        }
+        container.innerHTML = data.map(it => `
             <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
-                <div class="d-flex justify-content-between">
-                    <h5>Câu ${it.idx}: ${it.q}</h5>
-                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'}">+${it.pts}đ</span>
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="fw-bold">Câu ${it.idx}: ${it.q}</h5>
+                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'} p-2">+${it.pts}đ</span>
                 </div>
-                ${it.event ? `<div class="text-danger fw-bold mb-1">${it.event}</div>` : ''}
-                <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
-                <p class="mb-2">Đáp án đúng: <b class="text-success">${it.c}</b></p>
-                <div class="small bg-light p-2 rounded"><i><b>Giải thích:</b> ${it.ex}</i></div>
+                ${it.event ? `<div class="text-danger fw-bold mb-2">🌟 ${it.event}</div>` : ''}
+                <div class="p-2 rounded bg-light mb-2">
+                    <p class="mb-1">Lựa chọn của bạn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
+                    <p class="mb-0 text-success">Đáp án đúng: <b>${it.c}</b></p>
+                </div>
+                <div class="small text-muted italic">
+                    <b>Giải thích:</b> ${it.ex || "Đang cập nhật nội dung giải thích..."}
+                </div>
             </div>`).join('');
     });
 
@@ -262,7 +296,8 @@
     });
 
     socket.on('new_player_waiting', d => {
-        const div = document.createElement('div'); div.className = "lb-item";
+        const div = document.createElement('div'); 
+        div.className = "lb-item";
         div.innerHTML = `<span>${d.name}</span> <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_all')">Duyệt</button>`;
         document.getElementById('wait-box').appendChild(div);
     });
