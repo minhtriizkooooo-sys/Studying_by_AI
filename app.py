@@ -17,15 +17,6 @@ game_state = {
 @app.route('/')
 def index(): return render_template('index.html')
 
-@app.route('/template')
-def download_template():
-    df = pd.DataFrame(columns=['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng', 'Giải thích'])
-    df.loc[0] = ["Marie Curie là người nước nào?", "Ba Lan", "Pháp", "Đức", "Anh", "Ba Lan", "Bà sinh ra tại Ba Lan và sau đó sang Pháp làm việc."]
-    out = io.BytesIO()
-    with pd.ExcelWriter(out, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
-    out.seek(0)
-    return send_file(out, as_attachment=True, download_name="template_marie_curie.xlsx")
-
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
@@ -35,7 +26,7 @@ def handle_upload(data):
         qr = qrcode.QRCode(box_size=10, border=2); qr.add_data(game_state['pin']); qr.make(fit=True)
         buf = io.BytesIO(); qr.make_image().save(buf, format='PNG')
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
-    except: emit('error', {'msg': "Lỗi file!"})
+    except: emit('error', {'msg': "Lỗi file Excel!"})
 
 @socketio.on('join_request')
 def join(data):
@@ -57,7 +48,9 @@ def approve_all():
 @socketio.on('start_next_round')
 def start_round():
     if not game_state['all_questions']: return
-    selected = random.sample(game_state['all_questions'], min(10, len(game_state['all_questions'])))
+    # Lấy ngẫu nhiên 10 câu hoặc toàn bộ nếu ít hơn 10
+    num_q = min(10, len(game_state['all_questions']))
+    selected = random.sample(game_state['all_questions'], num_q)
     game_state.update({"current_round_qs": selected, "active_q_idx": 0, "is_running": True})
     send_q()
 
@@ -67,7 +60,7 @@ def send_q():
         game_state['is_running'] = False
         final_lb = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
         socketio.emit('game_over', {'results': final_lb})
-        socketio.emit('enable_review', broadcast=True)
+        socketio.emit('enable_review', broadcast=True) # Kích hoạt nút xem lại bài
         return
     game_state['start_time'] = time.time()
     q = game_state['current_round_qs'][idx]
@@ -80,31 +73,38 @@ def handle_sub(data):
     p = game_state['players'][sid]
     q = game_state['current_round_qs'][game_state['active_q_idx']]
     
-    user_ans = str(data['ans']).strip().lower()
-    correct_ans = str(q['Đáp án đúng']).strip().lower()
-    is_correct = (user_ans == correct_ans)
+    user_choice_text = str(data['ans']).strip()
+    raw_correct = str(q['Đáp án đúng']).strip().upper() # Thường là 'A', 'B', 'C' hoặc 'D'
+    
+    # Logic so khớp thông minh:
+    # Nếu Đáp án đúng trong Excel là "A" -> Lấy nội dung cột "Đáp án A" để so sánh
+    actual_correct_text = str(q.get(f'Đáp án {raw_correct}', raw_correct)).strip()
+    
+    is_correct = (user_choice_text.lower() == actual_correct_text.lower())
     
     elapsed = time.time() - game_state['start_time']
     base_pts = max(10, int(100 * (1 - elapsed / 15.0))) if is_correct else 0
     
-    # --- LUCKY EVENTS LOGIC ---
     event_msg = ""
     if is_correct:
         roll = random.random()
-        if roll > 0.85: # 15% Lucky Spin
+        if roll > 0.85:
             base_pts *= 2
             event_msg = "🎡 LUCKY SPIN: X2 ĐIỂM!"
-        elif roll < 0.10: # 10% Mark Steal
+        elif roll < 0.10:
             base_pts += 50
-            event_msg = "🏴‍☠️ MARK STEAL: +50đ THƯỞNG!"
+            event_msg = "🏴‍☠️ MARK STEAL: +50đ!"
 
     p['total'] += base_pts
     p['last_pts'] = base_pts
     p['history'].append({
-        "idx": game_state['active_q_idx']+1, 
-        "q": q['Câu hỏi'], "u": data['ans'], 
-        "c": q['Đáp án đúng'], "pts": base_pts, 
-        "ex": q['Giải thích'], "event": event_msg
+        "idx": game_state['active_q_idx'] + 1, 
+        "q": q['Câu hỏi'], 
+        "u": user_choice_text, 
+        "c": actual_correct_text, 
+        "pts": base_pts, 
+        "ex": q.get('Giải thích', ''), 
+        "event": event_msg
     })
     
     emit('score_update', {'total': p['total'], 'last': base_pts, 'correct': is_correct, 'event': event_msg})
