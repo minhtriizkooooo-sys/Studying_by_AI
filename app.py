@@ -11,8 +11,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 game_state = {
     "all_questions": [], "current_round_qs": [],
     "players": {}, "player_names": set(), "active_q_idx": -1,
-    "start_time": 0, "pin": None, "is_running": False,
-    "current_answers_count": 0
+    "start_time": 0, "pin": None, "is_running": False
 }
 
 @app.route('/')
@@ -70,7 +69,6 @@ def send_q():
         socketio.emit('game_over', {'results': final_lb})
         socketio.emit('enable_review', broadcast=True)
         return
-    game_state['current_answers_count'] = 0
     game_state['start_time'] = time.time()
     q = game_state['current_round_qs'][idx]
     socketio.emit('new_q', {'q': q, 'idx': idx + 1, 'total': len(game_state['current_round_qs'])})
@@ -82,20 +80,34 @@ def handle_sub(data):
     p = game_state['players'][sid]
     q = game_state['current_round_qs'][game_state['active_q_idx']]
     
-    # Logic so khớp đáp án cực chuẩn
     user_ans = str(data['ans']).strip().lower()
     correct_ans = str(q['Đáp án đúng']).strip().lower()
     is_correct = (user_ans == correct_ans)
     
     elapsed = time.time() - game_state['start_time']
-    pts = max(10, int(100 * (1 - elapsed / 15.0))) if is_correct else 0
+    base_pts = max(10, int(100 * (1 - elapsed / 15.0))) if is_correct else 0
     
-    p['total'] += pts
-    p['last_pts'] = pts
-    p['history'].append({"idx": game_state['active_q_idx']+1, "q": q['Câu hỏi'], "u": data['ans'], "c": q['Đáp án đúng'], "pts": pts, "ex": q['Giải thích']})
+    # --- LUCKY EVENTS LOGIC ---
+    event_msg = ""
+    if is_correct:
+        roll = random.random()
+        if roll > 0.85: # 15% Lucky Spin
+            base_pts *= 2
+            event_msg = "🎡 LUCKY SPIN: X2 ĐIỂM!"
+        elif roll < 0.10: # 10% Mark Steal
+            base_pts += 50
+            event_msg = "🏴‍☠️ MARK STEAL: +50đ THƯỞNG!"
+
+    p['total'] += base_pts
+    p['last_pts'] = base_pts
+    p['history'].append({
+        "idx": game_state['active_q_idx']+1, 
+        "q": q['Câu hỏi'], "u": data['ans'], 
+        "c": q['Đáp án đúng'], "pts": base_pts, 
+        "ex": q['Giải thích'], "event": event_msg
+    })
     
-    emit('score_update', {'total': p['total'], 'last': pts, 'correct': is_correct})
-    game_state['current_answers_count'] += 1
+    emit('score_update', {'total': p['total'], 'last': base_pts, 'correct': is_correct, 'event': event_msg})
     update_lb()
 
 @socketio.on('times_up')
