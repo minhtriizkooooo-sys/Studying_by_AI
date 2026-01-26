@@ -35,17 +35,25 @@
         .rank-2 { height: 90px; background: #C0C0C0; order: 1; }
         .rank-3 { height: 70px; background: #CD7F32; order: 3; }
         .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; }
+
+        @media print {
+            .no-print, button, input, header, footer, .logo-area { display: none !important; }
+            main { padding: 0; overflow: visible; }
+            .dash-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+            body { background: white; overflow: visible; }
+            .hidden-print { display: none !important; }
+        }
     </style>
 </head>
 <body>
 
-<header>
+<header class="no-print">
     <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
     <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
 </header>
 
 <main class="container">
-    <div id="role-select" class="text-center py-5">
+    <div id="role-select" class="text-center py-5 no-print">
         <div class="dash-card d-inline-block px-5">
             <h2 class="mb-4 text-navy">Hệ thống Trắc nghiệm AI</h2>
             <button class="btn btn-dark btn-lg px-5 me-2" onclick="init('host')">BẢN HOST</button>
@@ -54,7 +62,7 @@
     </div>
 
     <div id="host-area" class="hidden">
-        <div id="host-live-ui">
+        <div id="host-live-ui" class="no-print">
             <div class="row">
                 <div class="col-md-4">
                     <div class="dash-card">
@@ -80,27 +88,40 @@
         </div>
 
         <div id="host-end-ui" class="hidden text-center">
-            <div class="dash-card">
-                <h1 class="orange-text">🎉 KẾT THÚC 🎉</h1>
-                <div class="podium">
-                    <div class="podium-item rank-2"><div id="name-2" class="winner-name">-</div>🥈 2nd</div>
-                    <div class="podium-item rank-1"><div id="name-1" class="winner-name">-</div>🥇 1st</div>
-                    <div class="podium-item rank-3"><div id="name-3" class="winner-name">-</div>🥉 3rd</div>
+            <div id="host-review-section">
+                <div class="dash-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+                        <h3 class="orange-text">BÁO CÁO TỔNG KẾT</h3>
+                        <button class="btn btn-success" onclick="window.print()">XUẤT PDF BÁO CÁO</button>
+                    </div>
+                    <div id="host-review-data" class="text-start"></div>
+                    <button class="btn btn-danger btn-lg w-100 mt-4 no-print" onclick="showPodium()">XEM VINH DANH (PODIUM)</button>
                 </div>
-                <div id="final-stats-list" class="text-start mx-auto mt-4" style="max-width: 400px;"></div>
-                <button class="btn btn-primary mt-3" onclick="location.reload()">LÀM MỚI</button>
+            </div>
+
+            <div id="host-podium-section" class="hidden">
+                <div class="dash-card">
+                    <h1 class="orange-text">🎉 KẾT THÚC 🎉</h1>
+                    <div class="podium">
+                        <div class="podium-item rank-2"><div id="name-2" class="winner-name">-</div>🥈 2nd</div>
+                        <div class="podium-item rank-1"><div id="name-1" class="winner-name">-</div>🥇 1st</div>
+                        <div class="podium-item rank-3"><div id="name-3" class="winner-name">-</div>🥉 3rd</div>
+                    </div>
+                    <div id="final-stats-list" class="text-start mx-auto mt-4" style="max-width: 400px;"></div>
+                    <button class="btn btn-primary mt-3 no-print" onclick="location.reload()">LÀM MỚI</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="user-area" class="hidden">
-        <div id="user-login" class="dash-card mx-auto" style="max-width: 420px;">
+        <div id="user-login" class="dash-card mx-auto no-print" style="max-width: 420px;">
             <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên">
             <input type="text" id="pin-in" class="form-control mb-3" placeholder="Mã PIN">
             <button class="btn btn-primary w-100" onclick="join()">THAM GIA</button>
         </div>
 
-        <div id="user-quiz" class="hidden">
+        <div id="user-quiz" class="hidden no-print">
             <div class="row">
                 <div class="col-md-8">
                     <div class="dash-card text-center">
@@ -126,16 +147,19 @@
 
     <div id="review-screen" class="hidden">
         <div class="container py-4">
-            <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm no-print">
                 <h2 class="m-0 text-navy">KẾT QUẢ CHI TIẾT</h2>
-                <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
+                <div>
+                    <button class="btn btn-success me-2" onclick="window.print()">XUẤT PDF</button>
+                    <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
+                </div>
             </div>
             <div id="review-data"></div>
         </div>
     </div>
 </main>
 
-<footer>
+<footer class="no-print">
     Developer: <span class="orange-text">Lại Nguyễn Minh Trí</span> | Hotline: <span class="orange-text">84-908-08-3566</span><br>
     <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
 </footer>
@@ -175,8 +199,9 @@
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
-        document.getElementById('lucky-event-display').innerText = ""; 
-        document.getElementById('last-pts-gain').innerText = ""; 
+        if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = ""; 
+        if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = ""; 
+        
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
@@ -186,7 +211,6 @@
                 btn.className = 'btn-ans';
                 btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
                 btn.onclick = () => {
-                    // Gửi cả chữ cái và nội dung để server so khớp linh hoạt
                     socket.emit('submit_ans', {ans: d.q['Đáp án '+l]});
                     Array.from(box.querySelectorAll('button')).forEach(b => b.disabled = true);
                     btn.style.borderColor = 'var(--navy)';
@@ -214,10 +238,13 @@
         if(myRole === 'host') {
             document.getElementById('host-live-ui').classList.add('hidden');
             document.getElementById('host-end-ui').classList.remove('hidden');
+            socket.emit('get_host_review');
+
             const res = d.results;
             if(res[0]) document.getElementById('name-1').innerText = res[0].name;
             if(res[1]) document.getElementById('name-2').innerText = res[1].name;
             if(res[2]) document.getElementById('name-3').innerText = res[2].name;
+            
             document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`
                 <div class="lb-item">
                     <span>#${i+1} ${p.name}</span>
@@ -225,6 +252,19 @@
                 </div>`).join('');
         }
     });
+
+    socket.on('render_host_review', data => {
+        document.getElementById('host-review-data').innerHTML = data.map(it => `
+            <div class="p-3 border-bottom">
+                <h6>Câu ${it.idx}: ${it.q}</h6>
+                <span class="text-success fw-bold">Đúng: ${it.c}</span> | <span class="text-danger fw-bold">Sai: ${it.w}</span>
+            </div>`).join('');
+    });
+
+    function showPodium() {
+        document.getElementById('host-review-section').classList.add('hidden');
+        document.getElementById('host-podium-section').classList.remove('hidden');
+    }
 
     function startCountdown() {
         let t = 15.0;
@@ -247,7 +287,6 @@
         if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
     });
 
-    // Kích hoạt nút review khi vòng thi kết thúc
     socket.on('enable_review', () => { 
         if(myRole === 'user') {
             document.getElementById('review-btn').classList.remove('hidden'); 
@@ -262,10 +301,6 @@
 
     socket.on('render_review', data => {
         const container = document.getElementById('review-data');
-        if (!data || data.length === 0) {
-            container.innerHTML = '<div class="alert alert-info">Không có dữ liệu bài làm.</div>';
-            return;
-        }
         container.innerHTML = data.map(it => `
             <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
                 <div class="d-flex justify-content-between align-items-start">
@@ -277,8 +312,8 @@
                     <p class="mb-1">Lựa chọn của bạn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
                     <p class="mb-0 text-success">Đáp án đúng: <b>${it.c}</b></p>
                 </div>
-                <div class="small text-muted italic">
-                    <b>Giải thích:</b> ${it.ex || "Đang cập nhật nội dung giải thích..."}
+                <div class="small text-muted">
+                    <b>Giải thích:</b> ${it.ex || "Nội dung đang cập nhật..."}
                 </div>
             </div>`).join('');
     });
@@ -298,7 +333,7 @@
     socket.on('new_player_waiting', d => {
         const div = document.createElement('div'); 
         div.className = "lb-item";
-        div.innerHTML = `<span>${d.name}</span> <button class='btn btn-sm btn-primary' onclick="socket.emit('approve_all')">Duyệt</button>`;
+        div.innerHTML = `<span>${d.name}</span> <span class="badge bg-primary">Chờ duyệt</span>`;
         document.getElementById('wait-box').appendChild(div);
     });
 </script>
