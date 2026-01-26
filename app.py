@@ -1,21 +1,19 @@
 import gevent.monkey
 gevent.monkey.patch_all()
-
 import os, random, qrcode, io, base64, time, pandas as pd
 from flask import Flask, render_template, request, send_file
 from flask_socketio import SocketIO, emit
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'marie_curie_smart_edu'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 game_state = {
-    "all_questions": [], 
+    "all_questions": [],
     "current_round_qs": [],
-    "players": {}, 
+    "players": {},
     "active_q_idx": -1,
-    "start_time": 0, 
-    "pin": None, 
+    "start_time": 0,
+    "pin": None,
     "is_running": False,
     "stats": {},
     "submitted_count": 0,
@@ -45,14 +43,18 @@ def handle_upload(data):
         header, encoded = data['content'].split(",", 1)
         df = pd.read_excel(io.BytesIO(base64.b64decode(encoded)))
         game_state.update({
-            "all_questions": df.to_dict('records'), 
-            "pin": str(random.randint(100000, 999999)), 
+            "all_questions": df.to_dict('records'),
+            "pin": str(random.randint(100000, 999999)),
             "players": {}, "stats": {}, "leader_sid": None, "is_running": False
         })
-        qr = qrcode.QRCode(box_size=10, border=2); qr.add_data(game_state['pin']); qr.make(fit=True)
-        buf = io.BytesIO(); qr.make_image().save(buf, format='PNG')
+        qr = qrcode.QRCode(box_size=10, border=2)
+        qr.add_data(game_state['pin'])
+        qr.make(fit=True)
+        buf = io.BytesIO()
+        qr.make_image().save(buf, format='PNG')
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
-    except: emit('error', {'msg': "Lỗi file Excel!"})
+    except:
+        emit('error', {'msg': "Lỗi file Excel!"})
 
 @socketio.on('join_request')
 def join(data):
@@ -64,7 +66,7 @@ def join(data):
 
 @socketio.on('approve_all')
 def approve_all():
-    for sid in game_state['players']: 
+    for sid in game_state['players']:
         game_state['players'][sid]['approved'] = True
     socketio.emit('approved_success')
 
@@ -83,15 +85,15 @@ def send_q():
         socketio.emit('game_over', {'results': res})
         socketio.emit('enable_review', broadcast=True)
         return
-    
+
     game_state['submitted_count'] = 0
     game_state['start_time'] = time.time()
     game_state['stats'][idx] = {"correct": 0, "wrong": 0}
     game_state['fastest_sid_this_round'] = None
-    
+
     players_list = sorted(game_state['players'].items(), key=lambda x: x[1]['total'], reverse=True)
     game_state['leader_sid'] = players_list[0][0] if players_list and players_list[0][1]['total'] > 0 else None
-    
+
     q_data = game_state['current_round_qs'][idx]
     socketio.emit('new_q', {'q': q_data, 'idx': idx + 1, 'total': len(game_state['current_round_qs'])})
 
@@ -102,23 +104,20 @@ def handle_sub(data):
     p = game_state['players'][sid]
     q_idx = game_state['active_q_idx']
     q = game_state['current_round_qs'][q_idx]
-    
+
     user_ans = str(data['ans']).strip()
     correct_key = str(q['Đáp án đúng']).strip().upper()
     correct_content = str(q.get(f'Đáp án {correct_key}', '')).strip()
     is_correct = (user_ans == correct_content)
-
     elapsed = time.time() - game_state['start_time']
     base = max(10, int(100 * (1 - elapsed/15))) if is_correct else 0
-    
+
     event = ""
     if is_correct:
         game_state['stats'][q_idx]['correct'] += 1
-        # Logic Top 1 nhân đôi
         if sid == game_state['leader_sid']:
             base *= 2
             event = "🎡 LUCKY SPIN (Top 1): X2 ĐIỂM!"
-        # Logic Mark Steal cho người nhanh nhất (không phải Top 1)
         elif game_state['fastest_sid_this_round'] is None:
             game_state['fastest_sid_this_round'] = sid
             base += 50
@@ -127,13 +126,26 @@ def handle_sub(data):
         game_state['stats'][q_idx]['wrong'] += 1
 
     p['total'] += base
-    p['history'].append({"idx": q_idx+1, "q": q['Câu hỏi'], "u": user_ans, "c": correct_content, "pts": base, "ex": q.get('Giải thích',''), "event": event})
-    
+    p['history'].append({
+        "idx": q_idx+1,
+        "q": q['Câu hỏi'],
+        "u": user_ans,
+        "c": correct_content,
+        "pts": base,
+        "ex": q.get('Giải thích',''),
+        "event": event,
+        "A": q.get('Đáp án A',''),
+        "B": q.get('Đáp án B',''),
+        "C": q.get('Đáp án C',''),
+        "D": q.get('Đáp án D',''),
+        "correct_key": correct_key
+    })
+
     emit('score_update', {'total': p['total'], 'last': base, 'correct': is_correct, 'event': event})
-    
+
     game_state['submitted_count'] += 1
     total_approved = sum(1 for pl in game_state['players'].values() if pl['approved'])
-    
+
     if game_state['submitted_count'] >= total_approved:
         gevent.sleep(1.0)
         next_question_auto()
@@ -142,15 +154,24 @@ def handle_sub(data):
 
 @socketio.on('times_up')
 def handle_timeout():
-    # Điền lịch sử trống cho những người chưa trả lời để tránh lỗi Review
     for sid, p in game_state['players'].items():
         if p['approved'] and len(p['history']) <= game_state['active_q_idx']:
             q = game_state['current_round_qs'][game_state['active_q_idx']]
             correct_key = str(q['Đáp án đúng']).strip().upper()
+            correct_content = str(q.get(f"Đáp án {correct_key}", ""))
             p['history'].append({
-                "idx": game_state['active_q_idx']+1, "q": q['Câu hỏi'], 
-                "u": "HẾT GIỜ", "c": str(q.get(f"Đáp án {correct_key}")), 
-                "pts": 0, "ex": q.get('Giải thích',''), "event": ""
+                "idx": game_state['active_q_idx']+1,
+                "q": q['Câu hỏi'],
+                "u": "HẾT GIỜ",
+                "c": correct_content,
+                "pts": 0,
+                "ex": q.get('Giải thích',''),
+                "event": "",
+                "A": q.get('Đáp án A',''),
+                "B": q.get('Đáp án B',''),
+                "C": q.get('Đáp án C',''),
+                "D": q.get('Đáp án D',''),
+                "correct_key": correct_key
             })
     next_question_auto()
 
@@ -170,20 +191,27 @@ def get_review():
 
 @socketio.on('get_host_review')
 def get_host_review():
-    # Host review chi tiết từng người chọn gì
     report = []
     for i, q in enumerate(game_state['current_round_qs']):
         user_details = []
         for p_sid, p in game_state['players'].items():
             if len(p['history']) > i:
-                ans = p['history'][i]['u']
-                is_right = (ans == p['history'][i]['c'])
-                user_details.append({"name": p['name'], "ans": ans, "correct": is_right})
-        
-        correct_key = str(q['Đáp án đúng']).strip().upper()
+                h = p['history'][i]
+                user_details.append({
+                    "name": p['name'],
+                    "ans": h['u'],
+                    "pts": h['pts']
+                })
+
+        correct_key = q.get('Đáp án đúng', '').strip().upper()
         report.append({
-            "idx": i+1, "q": q['Câu hỏi'], 
-            "c_ans": q.get(f'Đáp án {correct_key}'),
+            "idx": i+1,
+            "q": q['Câu hỏi'],
+            "A": q.get('Đáp án A',''),
+            "B": q.get('Đáp án B',''),
+            "C": q.get('Đáp án C',''),
+            "D": q.get('Đáp án D',''),
+            "c_ans": q.get(f'Đáp án {correct_key}', ''),
             "ex": q.get('Giải thích',''),
             "users": user_details
         })
