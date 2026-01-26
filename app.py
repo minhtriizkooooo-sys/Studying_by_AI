@@ -86,9 +86,8 @@ def send_q():
     game_state['submitted_count'] = 0
     game_state['start_time'] = time.time()
     game_state['stats'][idx] = {"correct": 0, "wrong": 0}
-    game_state['fastest_sid_this_round'] = None # Reset người nhanh nhất cho câu mới
+    game_state['fastest_sid_this_round'] = None
     
-    # Xác định Leader (Top 1) hiện tại
     players_list = sorted(game_state['players'].items(), key=lambda x: x[1]['total'], reverse=True)
     game_state['leader_sid'] = players_list[0][0] if players_list and players_list[0][1]['total'] > 0 else None
     
@@ -110,7 +109,6 @@ def handle_sub(data):
     elapsed = time.time() - game_state['start_time']
     base = max(10, int(100 * (1 - elapsed/15))) if is_correct else 0
     
-    # Ghi nhận người nhanh nhất trả lời ĐÚNG
     is_fastest = False
     if is_correct and game_state['fastest_sid_this_round'] is None:
         game_state['fastest_sid_this_round'] = sid
@@ -119,15 +117,10 @@ def handle_sub(data):
     event = ""
     if is_correct:
         game_state['stats'][q_idx]['correct'] += 1
-        # 1. LUCKY SPIN cho Top 1 trả lời đúng
         if sid == game_state['leader_sid']:
             base *= 2
             event = "🎡 LUCKY SPIN (Top 1): X2 ĐIỂM!"
-        
-        # 2. MARK STEAL: Xảy ra nếu bạn là người nhanh nhất VÀ bạn không phải là Top 1
         elif is_fastest and sid != game_state['leader_sid']:
-            # Kiểm tra xem Top 1 có bị "mất ngôi" tốc độ không
-            # Nếu Top 1 chưa trả lời hoặc sẽ trả lời sau người này
             base += 50
             event = "🏴‍☠️ MARK STEAL: CƯỚP ĐIỂM TỐC ĐỘ (+50)!"
     else:
