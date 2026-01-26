@@ -20,7 +20,7 @@ game_state = {
     "stats": {},
     "submitted_count": 0,
     "leader_sid": None,
-    "fastest_sid_this_round": None # Lưu người nhanh nhất câu hiện tại
+    "fastest_sid_this_round": None
 }
 
 @app.route('/')
@@ -47,7 +47,7 @@ def handle_upload(data):
         game_state.update({
             "all_questions": df.to_dict('records'), 
             "pin": str(random.randint(100000, 999999)), 
-            "players": {}, "stats": {}, "leader_sid": None
+            "players": {}, "stats": {}, "leader_sid": None, "is_running": False
         })
         qr = qrcode.QRCode(box_size=10, border=2); qr.add_data(game_state['pin']); qr.make(fit=True)
         buf = io.BytesIO(); qr.make_image().save(buf, format='PNG')
@@ -64,8 +64,9 @@ def join(data):
 
 @socketio.on('approve_all')
 def approve_all():
-    for sid in game_state['players']: game_state['players'][sid]['approved'] = True
-    socketio.emit('approved_success', broadcast=True)
+    for sid in game_state['players']: 
+        game_state['players'][sid]['approved'] = True
+    socketio.emit('approved_success') # Gửi lệnh cho toàn bộ User chuyển màn hình
 
 @socketio.on('start_next_round')
 def start_round():
@@ -91,7 +92,13 @@ def send_q():
     players_list = sorted(game_state['players'].items(), key=lambda x: x[1]['total'], reverse=True)
     game_state['leader_sid'] = players_list[0][0] if players_list and players_list[0][1]['total'] > 0 else None
     
-    socketio.emit('new_q', {'q': game_state['current_round_qs'][idx], 'idx': idx + 1, 'total': len(game_state['current_round_qs'])})
+    # QUAN TRỌNG: Gửi cả câu hỏi và đáp án cho mọi người
+    q_data = game_state['current_round_qs'][idx]
+    socketio.emit('new_q', {
+        'q': q_data, 
+        'idx': idx + 1, 
+        'total': len(game_state['current_round_qs'])
+    })
 
 @socketio.on('submit_ans')
 def handle_sub(data):
