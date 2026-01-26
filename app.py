@@ -1,3 +1,4 @@
+import gevent.monkey
 gevent.monkey.patch_all()
 
 import os, random, qrcode, io, base64, time, pandas as pd
@@ -198,3 +199,4 @@ def get_host_review():
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
+
