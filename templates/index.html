@@ -8,40 +8,12 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         :root { --navy: #001f3f; --orange: #FF4500; }
-        
-        html, body { 
-            height: 100%; 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            background: #f4f7f6; 
-            font-family: 'Segoe UI', sans-serif; 
-            overflow: hidden; 
-        }
-        
-        header { 
-            background: var(--navy); color: white; padding: 10px 40px; 
-            display: grid; grid-template-columns: 150px 1fr 150px; 
-            align-items: center; border-bottom: 5px solid var(--orange); 
-            flex-shrink: 0; 
-        }
-        
+        html, body { height: 100%; margin: 0; display: flex; flex-direction: column; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
         .logo-area img { height: 45px; width: auto; }
         .user-tag { background: var(--orange); padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
-        
-        main { 
-            flex: 1; 
-            padding: 25px; 
-            overflow-y: auto; 
-            -webkit-overflow-scrolling: touch; 
-        }
-        
-        footer { 
-            background: var(--navy); color: white; padding: 15px; 
-            text-align: center; border-top: 4px solid var(--orange); 
-            flex-shrink: 0; font-size: 0.9rem; 
-        }
-
+        main { flex: 1; padding: 25px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.9rem; }
         .orange-text { color: var(--orange) !important; font-weight: bold; }
         .dash-card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
         .timer-circle { font-size: 3rem; font-weight: 800; color: var(--orange); }
@@ -50,33 +22,20 @@
         .hidden { display: none !important; }
         .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
         .event-msg { font-size: 1.5rem; font-weight: bold; color: #d63384; animation: shake 0.5s ease-in-out infinite; margin-bottom: 10px; min-height: 2.2rem; }
-        
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-1deg); } 75% { transform: translateX(5px) rotate(1deg); } }
-
-        /* Podium vinh danh */
         .podium { display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin: 30px 0; }
         .podium-item { text-align: center; width: 100px; padding: 10px; border-radius: 10px 10px 0 0; color: white; font-weight: bold; position: relative; }
         .rank-1 { height: 120px; background: linear-gradient(#FFD700, #DAA520); order: 2; box-shadow: 0 0 15px rgba(255,215,0,0.4); }
         .rank-2 { height: 90px; background: linear-gradient(#C0C0C0, #808080); order: 1; }
         .rank-3 { height: 70px; background: linear-gradient(#CD7F32, #8B4513); order: 3; }
         .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; font-weight: bold; }
-
-        @media (max-width: 768px) {
-            header { display: flex; flex-direction: column; padding: 10px; }
-            .logo-area { margin-bottom: 5px; }
-            .timer-circle { font-size: 2rem; }
-            .btn-ans { padding: 12px; font-size: 0.9rem; }
-        }
-
-        @media print {
-            .no-print, header, footer { display: none !important; }
-            main { overflow: visible; padding: 0; }
-            body { overflow: visible; background: white; }
-        }
+        .review-item { border-left: 5px solid #28a745; margin-bottom: 1.5rem; padding-left: 1rem; }
+        .review-item.wrong { border-left-color: #dc3545; }
+        @media (max-width: 768px) { header { display: flex; flex-direction: column; padding: 10px; } .logo-area { margin-bottom: 5px; } .timer-circle { font-size: 2rem; } .btn-ans { padding: 12px; font-size: 0.9rem; } }
+        @media print { .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; } main { overflow: visible; padding: 0; } body { overflow: visible; background: white; } }
     </style>
 </head>
 <body>
-
 <header class="no-print">
     <div class="logo-area">
         <img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'">
@@ -88,6 +47,8 @@
 </header>
 
 <main class="container">
+
+    <!-- Role select -->
     <div id="role-select" class="text-center py-5 no-print">
         <div class="dash-card d-inline-block px-5">
             <h2 class="mb-4 text-navy">Hệ thống Trắc nghiệm AI</h2>
@@ -96,6 +57,7 @@
         </div>
     </div>
 
+    <!-- HOST AREA -->
     <div id="host-area" class="hidden">
         <div id="host-live-ui" class="no-print">
             <div class="row">
@@ -122,11 +84,11 @@
             </div>
         </div>
 
-        <div id="host-end-ui" class="hidden text-center">
+        <div id="host-end-ui" class="hidden">
             <div id="host-review-section">
                 <div class="dash-card">
                     <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-                        <h3 class="orange-text">BÁO CÁO TỔNG KẾT</h3>
+                        <h3 class="orange-text">BÁO CÁO TỔNG KẾT (HOST)</h3>
                         <button class="btn btn-success" onclick="window.print()">XUẤT PDF BÁO CÁO</button>
                     </div>
                     <div id="host-review-data" class="text-start"></div>
@@ -135,7 +97,7 @@
             </div>
 
             <div id="host-podium-section" class="hidden">
-                <div class="dash-card">
+                <div class="dash-card text-center">
                     <h1 class="orange-text">🎉 KẾT THÚC 🎉</h1>
                     <div class="podium">
                         <div class="podium-item rank-2"><div id="name-2" class="winner-name">-</div>🥈 2nd</div>
@@ -149,6 +111,7 @@
         </div>
     </div>
 
+    <!-- USER AREA -->
     <div id="user-area" class="hidden">
         <div id="user-login" class="dash-card mx-auto no-print" style="max-width: 420px;">
             <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên">
@@ -174,24 +137,26 @@
                         <hr>
                         <div id="user-lb" class="text-start small"></div>
                     </div>
-                    <button id="review-btn" class="btn btn-info w-100 hidden" onclick="openReview()">XEM LẠI BÀI LÀM</button>
+                    <button id="review-btn" class="btn btn-info w-100 hidden mt-3" onclick="openReview()">XEM LẠI BÀI LÀM</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- REVIEW SCREEN (chung cho cả host & user) -->
     <div id="review-screen" class="hidden">
         <div class="container py-4">
             <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm no-print">
-                <h2 class="m-0 text-navy">KẾT QUẢ CHI TIẾT</h2>
+                <h2 class="m-0 text-navy" id="review-title">KẾT QUẢ CHI TIẾT</h2>
                 <div>
                     <button class="btn btn-success me-2" onclick="window.print()">XUẤT PDF</button>
-                    <button class="btn btn-secondary" onclick="location.reload()">THOÁT</button>
+                    <button class="btn btn-secondary" onclick="backToMain()">THOÁT</button>
                 </div>
             </div>
             <div id="review-data"></div>
         </div>
     </div>
+
 </main>
 
 <footer class="no-print">
@@ -203,12 +168,12 @@
     const socket = io();
     let myRole = "", myName = "", clockInt;
 
-    function init(r) { 
-        myRole = r; 
-        document.getElementById('role-select').classList.add('hidden'); 
-        document.getElementById(r + '-area').classList.remove('hidden'); 
+    function init(r) {
+        myRole = r;
+        document.getElementById('role-select').classList.add('hidden');
+        document.getElementById(r + '-area').classList.remove('hidden');
     }
-    
+
     function join() {
         myName = document.getElementById('name-in').value.trim();
         const pin = document.getElementById('pin-in').value.trim();
@@ -242,15 +207,15 @@
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
-        if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = ""; 
-        if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = ""; 
-        
+        if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = "";
+        if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = "";
+
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
             ['A','B','C','D'].forEach(l => {
-                const btn = document.createElement('button'); 
+                const btn = document.createElement('button');
                 btn.className = 'btn-ans';
                 btn.innerText = `${l}. ${d.q['Đáp án '+l]}`;
                 btn.onclick = () => {
@@ -282,10 +247,10 @@
         let t = 15.0;
         clockInt = setInterval(() => {
             t -= 0.1;
-            if (t <= 0) { 
-                t = 0; 
-                clearInterval(clockInt); 
-                if(myRole==='host') socket.emit('times_up'); 
+            if (t <= 0) {
+                t = 0;
+                clearInterval(clockInt);
+                if(myRole==='host') socket.emit('times_up');
             }
             const val = t.toFixed(1);
             if(document.getElementById('clock')) document.getElementById('clock').innerText = val;
@@ -327,18 +292,10 @@
     });
 
     socket.on('new_player_waiting', d => {
-        const div = document.createElement('div'); 
+        const div = document.createElement('div');
         div.className = "lb-item";
         div.innerHTML = `<span>${d.name}</span> <span class="badge bg-primary">Chờ duyệt</span>`;
         document.getElementById('wait-box').appendChild(div);
-    });
-
-    socket.on('render_host_review', data => {
-        document.getElementById('host-review-data').innerHTML = data.map(it => `
-            <div class="p-3 border-bottom">
-                <h6>Câu ${it.idx}: ${it.q}</h6>
-                <span class="text-success fw-bold">Đúng: ${it.c}</span> | <span class="text-danger fw-bold">Sai: ${it.w}</span>
-            </div>`).join('');
     });
 
     function showPodium() {
@@ -346,29 +303,79 @@
         document.getElementById('host-podium-section').classList.remove('hidden');
     }
 
-    socket.on('enable_review', () => { if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden'); });
+    socket.on('enable_review', () => {
+        if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden');
+    });
 
     function openReview() {
         document.getElementById('user-quiz').classList.add('hidden');
         document.getElementById('review-screen').classList.remove('hidden');
+        document.getElementById('review-title').innerText = "KẾT QUẢ CHI TIẾT CỦA BẠN";
         socket.emit('get_review');
+    }
+
+    function backToMain() {
+        document.getElementById('review-screen').classList.add('hidden');
+        if (myRole === 'user') {
+            document.getElementById('user-quiz').classList.remove('hidden');
+        } else {
+            // host quay lại màn hình podium hoặc review tùy ý
+            document.getElementById('host-end-ui').classList.remove('hidden');
+        }
     }
 
     socket.on('render_review', data => {
         const container = document.getElementById('review-data');
+        container.innerHTML = data.map(it => {
+            const isCorrect = it.pts > 0;
+            return `
+            <div class="dash-card review-item ${isCorrect ? '' : 'wrong'}">
+                <h5 class="fw-bold">Câu ${it.idx}: ${it.q}</h5>
+                <div class="mt-2">
+                    <div>A. ${it.A}</div>
+                    <div>B. ${it.B}</div>
+                    <div>C. ${it.C}</div>
+                    <div>D. ${it.D}</div>
+                </div>
+                <div class="mt-3">
+                    <strong>Bạn chọn:</strong> <span class="${isCorrect ? 'text-success' : 'text-danger'} fw-bold">${it.u}</span>
+                </div>
+                <div><strong>Đáp án đúng:</strong> <span class="text-success fw-bold">${it.c}</span></div>
+                <div class="mt-2"><strong>Giải thích:</strong> ${it.ex || 'Không có'}</div>
+                <div class="mt-3 fs-5">
+                    <strong>Điểm câu này:</strong> 
+                    <span class="${isCorrect ? 'text-success' : 'text-danger'} fw-bold">+${it.pts}đ</span>
+                    ${it.event ? `<div class="text-danger mt-1">${it.event}</div>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+    });
+
+    socket.on('render_host_review', data => {
+        const container = document.getElementById('host-review-data');
         container.innerHTML = data.map(it => `
-            <div class="dash-card border-start border-5 ${it.pts > 0 ? 'border-success' : 'border-danger'} mb-3">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h5 class="fw-bold">Câu ${it.idx}: ${it.q}</h5>
-                    <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'} p-2">+${it.pts}đ</span>
+            <div class="dash-card mb-4 border-start border-5 border-primary">
+                <h5 class="fw-bold">Câu ${it.idx}: ${it.q}</h5>
+                <div class="mt-2">
+                    <div>A. ${it.A}</div>
+                    <div>B. ${it.B}</div>
+                    <div>C. ${it.C}</div>
+                    <div>D. ${it.D}</div>
                 </div>
-                ${it.event ? `<div class="text-danger fw-bold mb-2">🌟 ${it.event}</div>` : ''}
-                <div class="p-2 rounded bg-light mb-2">
-                    <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
-                    <p class="mb-0 text-success">Đáp án đúng: <b>${it.c}</b></p>
-                    <p class="mb-1 mt-2 small italic">Giải thích: ${it.ex}</p>
+                <hr>
+                <div class="mt-3">
+                    ${it.users.map(u => `
+                        <div class="lb-item">
+                            <span>${u.name} chọn: <b>${u.ans}</b></span>
+                            <span>Điểm: <b>${u.pts > 0 ? '+' + u.pts : u.pts}</b></span>
+                        </div>
+                    `).join('')}
                 </div>
-            </div>`).join('');
+                <hr>
+                <div><strong>Đáp án đúng:</strong> <span class="text-success fw-bold">${it.c_ans}</span></div>
+                <div><strong>Giải thích:</strong> ${it.ex || 'Không có'}</div>
+            </div>
+        `).join('');
     });
 
     document.getElementById('csv-file').onchange = e => {
