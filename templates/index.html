@@ -27,6 +27,7 @@
         }
         
         .logo-area img { height: 45px; width: auto; }
+        .user-tag { background: var(--orange); padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
         
         main { 
             flex: 1; 
@@ -52,12 +53,13 @@
         
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-1deg); } 75% { transform: translateX(5px) rotate(1deg); } }
 
+        /* Podium vinh danh */
         .podium { display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin: 30px 0; }
         .podium-item { text-align: center; width: 100px; padding: 10px; border-radius: 10px 10px 0 0; color: white; font-weight: bold; position: relative; }
-        .rank-1 { height: 120px; background: #FFD700; order: 2; }
-        .rank-2 { height: 90px; background: #C0C0C0; order: 1; }
-        .rank-3 { height: 70px; background: #CD7F32; order: 3; }
-        .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; }
+        .rank-1 { height: 120px; background: linear-gradient(#FFD700, #DAA520); order: 2; box-shadow: 0 0 15px rgba(255,215,0,0.4); }
+        .rank-2 { height: 90px; background: linear-gradient(#C0C0C0, #808080); order: 1; }
+        .rank-3 { height: 70px; background: linear-gradient(#CD7F32, #8B4513); order: 3; }
+        .winner-name { color: #333; position: absolute; top: -25px; left: 0; width: 100%; font-size: 0.8rem; font-weight: bold; }
 
         @media (max-width: 768px) {
             header { display: flex; flex-direction: column; padding: 10px; }
@@ -76,9 +78,13 @@
 <body>
 
 <header class="no-print">
-    <div class="logo-area"><img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'"></div>
+    <div class="logo-area">
+        <img src="/static/images/Logo_Marie_Curie.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/826/826070.png'">
+    </div>
     <div class="text-center"><h3 class="m-0">MARIE CURIE SMART EDUCATION</h3></div>
-    <div></div>
+    <div class="text-end">
+        <span id="display-name" class="user-tag hidden"></span>
+    </div>
 </header>
 
 <main class="container">
@@ -224,23 +230,22 @@
             </div>`;
     });
 
-    // FIX 1: Chuyển màn hình User ngay khi duyệt
     socket.on('approved_success', () => {
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
             document.getElementById('user-quiz').classList.remove('hidden');
+            document.getElementById('display-name').innerText = "👤 " + myName;
+            document.getElementById('display-name').classList.remove('hidden');
             document.getElementById('q-body').innerText = "Đã được duyệt! Đang chờ câu hỏi...";
         }
     });
 
-    // FIX 2: Host nhìn thấy đầy đủ nội dung câu hỏi
     socket.on('new_q', d => {
         clearInterval(clockInt);
         if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = ""; 
         if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = ""; 
         
         if (myRole === 'user') {
-            document.getElementById('user-quiz').classList.remove('hidden'); // Đảm bảo hiện nếu chưa hiện
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
             const box = document.getElementById('ans-list'); box.innerHTML = '';
@@ -257,17 +262,16 @@
                 box.appendChild(btn);
             });
         } else {
-            // Hiển thị chi tiết cho Host quản lý
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('host-q-content').innerHTML = `
                 <div class="text-start">
                     <h4 class="orange-text">ĐANG THI: CÂU ${d.idx}/${d.total}</h4>
                     <h3 class="fw-bold">${d.q['Câu hỏi']}</h3>
                     <div class="row mt-3">
-                        <div class="col-6">A: ${d.q['Đáp án A']}</div>
-                        <div class="col-6">B: ${d.q['Đáp án B']}</div>
-                        <div class="col-6">C: ${d.q['Đáp án C']}</div>
-                        <div class="col-6">D: ${d.q['Đáp án D']}</div>
+                        <div class="col-6 mb-2">A: ${d.q['Đáp án A']}</div>
+                        <div class="col-6 mb-2">B: ${d.q['Đáp án B']}</div>
+                        <div class="col-6 mb-2">C: ${d.q['Đáp án C']}</div>
+                        <div class="col-6 mb-2">D: ${d.q['Đáp án D']}</div>
                     </div>
                 </div>`;
         }
