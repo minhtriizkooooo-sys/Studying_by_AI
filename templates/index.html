@@ -20,6 +20,14 @@
         .hidden { display: none !important; }
         .lb-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
         
+        /* Hiệu ứng may mắn */
+        .event-msg { font-size: 1.5rem; font-weight: bold; color: #d63384; animation: shake 0.5s ease-in-out infinite; margin-bottom: 10px; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px) rotate(-1deg); }
+            75% { transform: translateX(5px) rotate(1deg); }
+        }
+
         /* Podium for Host */
         .podium { display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin: 30px 0; }
         .podium-item { text-align: center; width: 100px; padding: 10px; border-radius: 10px 10px 0 0; color: white; font-weight: bold; position: relative; }
@@ -96,6 +104,7 @@
             <div class="row">
                 <div class="col-md-8">
                     <div class="dash-card text-center">
+                        <div id="lucky-event-display" class="event-msg"></div>
                         <div class="timer-circle"><span id="clock">15.0</span>s</div>
                         <h5 id="q-meta" class="text-muted mt-2 fw-bold"></h5>
                         <h2 id="q-body" class="fw-bold my-4"></h2>
@@ -104,7 +113,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="dash-card text-center">
-                        <h5>ĐIỂM: <span id="my-pts" class="text-success fw-bold">0</span></h5>
+                        <h5>ĐIỂM: <span id="my-pts" class="text-success fw-bold" style="font-size: 2rem;">0</span></h5>
                         <div id="last-pts-gain" class="fw-bold mt-2"></div>
                         <hr>
                         <div id="user-lb" class="text-start small"></div>
@@ -142,7 +151,6 @@
         socket.emit('join_request', {name: myName, pin: pin});
     }
 
-    // Lời chào Marie Curie
     socket.on('join_received', () => {
         const loginBox = document.getElementById('user-login');
         loginBox.innerHTML = `
@@ -161,6 +169,7 @@
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
+        document.getElementById('lucky-event-display').innerText = ""; 
         document.getElementById('last-pts-gain').innerText = ""; 
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
@@ -184,8 +193,9 @@
 
     socket.on('score_update', d => {
         document.getElementById('my-pts').innerText = d.total;
+        document.getElementById('lucky-event-display').innerText = d.event || "";
         const gainBox = document.getElementById('last-pts-gain');
-        gainBox.innerHTML = d.correct ? `<span class="text-success">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger">SAI RỒI! +0đ</span>`;
+        gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
 
     socket.on('game_over', d => {
@@ -232,6 +242,7 @@
                     <h5>Câu ${it.idx}: ${it.q}</h5>
                     <span class="badge ${it.pts > 0 ? 'bg-success' : 'bg-danger'}">+${it.pts}đ</span>
                 </div>
+                ${it.event ? `<div class="text-danger fw-bold mb-1">${it.event}</div>` : ''}
                 <p class="mb-1">Lựa chọn: <b class="${it.pts > 0 ? 'text-success' : 'text-danger'}">${it.u}</b></p>
                 <p class="mb-2">Đáp án đúng: <b class="text-success">${it.c}</b></p>
                 <div class="small bg-light p-2 rounded"><i><b>Giải thích:</b> ${it.ex}</i></div>
