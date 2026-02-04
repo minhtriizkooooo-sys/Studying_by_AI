@@ -6,7 +6,6 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'marie_curie_smart_edu'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-
 game_state = {
     "all_questions": [],
     "current_round_qs": [],
@@ -20,10 +19,8 @@ game_state = {
     "leader_sid": None,
     "fastest_sid_this_round": None
 }
-
 @app.route('/')
 def index(): return render_template('index.html')
-
 @app.route('/template')
 def download_template():
     data = {
@@ -36,7 +33,6 @@ def download_template():
         df.to_excel(writer, index=False)
     output.seek(0)
     return send_file(output, as_attachment=True, download_name="TEMPLATE_QUIZ.xlsx")
-
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
@@ -48,14 +44,13 @@ def handle_upload(data):
             "players": {}, "stats": {}, "leader_sid": None, "is_running": False
         })
         qr = qrcode.QRCode(box_size=10, border=2)
-        qr.add_data(game_state['pin'])
+        qr.add_data(f"{request.url_root}?role=user&pin={game_state['pin']}")
         qr.make(fit=True)
         buf = io.BytesIO()
         qr.make_image().save(buf, format='PNG')
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
     except:
         emit('error', {'msg': "Lỗi file Excel!"})
-
 @socketio.on('join_request')
 def join(data):
     name, pin = data.get('name', '').strip(), data.get('pin')
@@ -63,40 +58,33 @@ def join(data):
         game_state['players'][request.sid] = {"name": name, "total": 0, "history": [], "approved": False}
         socketio.emit('new_player_waiting', {'name': name})
         emit('join_received')
-
 @socketio.on('approve_all')
 def approve_all():
     for sid in game_state['players']:
         game_state['players'][sid]['approved'] = True
     socketio.emit('approved_success')
-
 @socketio.on('start_next_round')
 def start_round():
     if not game_state['all_questions']: return
     qs = random.sample(game_state['all_questions'], min(10, len(game_state['all_questions'])))
     game_state.update({"current_round_qs": qs, "active_q_idx": 0, "is_running": True})
     send_q()
-
 def send_q():
     idx = game_state['active_q_idx']
     if idx >= len(game_state['current_round_qs']):
         game_state['is_running'] = False
         res = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
         socketio.emit('game_over', {'results': res})
-        socketio.emit('enable_review')  # Đã bỏ broadcast=True
+        socketio.emit('enable_review') # Đã bỏ broadcast=True
         return
-
     game_state['submitted_count'] = 0
     game_state['start_time'] = time.time()
     game_state['stats'][idx] = {"correct": 0, "wrong": 0}
     game_state['fastest_sid_this_round'] = None
-
     players_list = sorted(game_state['players'].items(), key=lambda x: x[1]['total'], reverse=True)
     game_state['leader_sid'] = players_list[0][0] if players_list and players_list[0][1]['total'] > 0 else None
-
     q_data = game_state['current_round_qs'][idx]
     socketio.emit('new_q', {'q': q_data, 'idx': idx + 1, 'total': len(game_state['current_round_qs'])})
-
 @socketio.on('submit_ans')
 def handle_sub(data):
     sid = request.sid
@@ -104,14 +92,12 @@ def handle_sub(data):
     p = game_state['players'][sid]
     q_idx = game_state['active_q_idx']
     q = game_state['current_round_qs'][q_idx]
-
     user_ans = str(data['ans']).strip()
     correct_key = str(q['Đáp án đúng']).strip().upper()
     correct_content = str(q.get(f'Đáp án {correct_key}', '')).strip()
     is_correct = (user_ans == correct_content)
     elapsed = time.time() - game_state['start_time']
     base = max(10, int(100 * (1 - elapsed/15))) if is_correct else 0
-
     event = ""
     if is_correct:
         game_state['stats'][q_idx]['correct'] += 1
@@ -124,7 +110,6 @@ def handle_sub(data):
             event = "🏴‍☠️ MARK STEAL: +50đ TỐC ĐỘ!"
     else:
         game_state['stats'][q_idx]['wrong'] += 1
-
     p['total'] += base
     p['history'].append({
         "idx": q_idx+1,
@@ -140,24 +125,19 @@ def handle_sub(data):
         "D": q.get('Đáp án D',''),
         "correct_key": correct_key
     })
-
     emit('score_update', {'total': p['total'], 'last': base, 'correct': is_correct, 'event': event})
-
     game_state['submitted_count'] += 1
     total_approved = sum(1 for pl in game_state['players'].values() if pl['approved'])
-
     if game_state['submitted_count'] >= total_approved:
         gevent.sleep(1.0)
         next_question_auto()
     else:
         update_lb()
-
 @socketio.on('times_up')
 def handle_timeout():
     idx = game_state['active_q_idx']
     if idx >= len(game_state['current_round_qs']) or idx < 0:
-        return  # Tránh IndexError khi round đã kết thúc
-
+        return # Tránh IndexError khi round đã kết thúc
     for sid, p in game_state['players'].items():
         if p['approved'] and len(p['history']) <= idx:
             q = game_state['current_round_qs'][idx]
@@ -178,21 +158,17 @@ def handle_timeout():
                 "correct_key": correct_key
             })
     next_question_auto()
-
 def next_question_auto():
     if game_state['is_running']:
         game_state['active_q_idx'] += 1
         send_q()
-
 def update_lb():
     lb = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
     socketio.emit('lb_update', lb)
-
 @socketio.on('get_review')
 def get_review():
     if request.sid in game_state['players']:
         emit('render_review', game_state['players'][request.sid]['history'])
-
 @socketio.on('get_host_review')
 def get_host_review():
     report = []
@@ -206,7 +182,6 @@ def get_host_review():
                     "ans": h['u'],
                     "pts": h['pts']
                 })
-
         correct_key = q.get('Đáp án đúng', '').strip().upper()
         report.append({
             "idx": i+1,
@@ -220,6 +195,5 @@ def get_host_review():
             "users": user_details
         })
     emit('render_host_review', report)
-
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
