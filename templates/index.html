@@ -215,6 +215,7 @@
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
             document.getElementById('user-quiz').classList.remove('hidden');
+            // Hiển thị tên user trên header (cả desktop và mobile)
             document.getElementById('display-name').innerText = "👤 " + myName;
             document.getElementById('display-name').classList.remove('hidden');
             document.getElementById('q-body').innerText = "Đã được duyệt! Đang chờ câu hỏi...";
@@ -241,7 +242,7 @@
                 };
                 box.appendChild(btn);
             });
-            // Ẩn header và footer chỉ khi bắt đầu thi (có câu hỏi)
+            // Ẩn header & footer trên mobile khi bắt đầu thi
             if (window.innerWidth <= 768) {
                 document.body.classList.add('quiz-active');
             }
