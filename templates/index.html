@@ -35,20 +35,26 @@
         .review-answer-list div { margin-bottom: 6px; font-size: 0.95rem; }
         .review-total { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; }
         @media (max-width: 768px) { 
-            header { display: flex; flex-direction: column; padding: 10px; } 
-            .logo-area { margin-bottom: 5px; } 
-            .timer-circle { font-size: 2rem; } 
-            .btn-ans { padding: 12px; font-size: 0.9rem; } 
-            #user-quiz .dash-card { padding: 10px; border-radius: 0; box-shadow: none; }
-            #user-quiz .row { margin: 0; }
-            #user-quiz .col-md-8 { padding: 0; }
+            header, footer { display: none !important; } 
+            main { padding: 0; height: 100vh; overflow: hidden; }
+            .dash-card { margin: 0; border-radius: 0; box-shadow: none; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; }
+            .timer-circle { font-size: 2.5rem; }
+            .btn-ans { padding: 14px; font-size: 1rem; margin-bottom: 10px; }
+            #user-quiz .row { margin: 0; height: 100%; }
+            #user-quiz .col-md-8 { width: 100%; padding: 0; }
             #user-quiz .col-md-4 { display: none; }
-            main { padding: 0; overflow: hidden; height: 100vh; }
-            body.mobile-quiz-mode { overflow: hidden; }
-            body.mobile-quiz-mode main { padding: 0; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-between; }
-            body.mobile-quiz-mode #user-quiz .dash-card { height: 100%; display: flex; flex-direction: column; justify-content: space-around; }
+            body.mobile-quiz-mode main { display: block; }
         }
-        @media print { .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; } main { overflow: visible; padding: 0; background: white; } body { overflow: visible; background: white; } .dash-card { box-shadow: none; border: 1px solid #ddd; } }
+        @media print { 
+            .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login, #download-pdf-btn { display: none !important; }
+            main { padding: 0; background: white; overflow: visible; }
+            body { margin: 0; background: white; }
+            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 15px; }
+            .user-review-card { page-break-inside: avoid; }
+            .review-total { page-break-before: always; }
+            #review-screen { padding: 10px; }
+            @page { margin: 10mm; size: A4 portrait; }
+        }
     </style>
 </head>
 <body>
@@ -153,7 +159,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm no-print">
                 <h2 class="m-0 text-navy" id="review-title">KẾT QUẢ CHI TIẾT CỦA BẠN</h2>
                 <div>
-                    <button class="btn btn-success me-2" onclick="window.print()">XUẤT PDF</button>
+                    <button class="btn btn-success me-2" id="print-btn" onclick="downloadPDF()">TẢI PDF KẾT QUẢ</button>
                     <button class="btn btn-secondary" onclick="backToMain()">THOÁT</button>
                 </div>
             </div>
@@ -165,21 +171,28 @@
     Developer: <span class="orange-text">Lại Nguyễn Minh Trí</span> | Hotline: <span class="orange-text">84-908-08-3566</span><br>
     <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
 </footer>
+
 <script>
     const socket = io();
     let myRole = "", myName = "", clockInt;
+
+    // Auto-detect from URL (QR scan)
     const urlParams = new URLSearchParams(window.location.search);
     const paramRole = urlParams.get('role');
     const paramPin = urlParams.get('pin');
-    if (paramRole === 'user' && paramPin) {
+    if (paramRole === 'user' && paramPin && paramPin.length === 6) {
         init('user');
         document.getElementById('pin-in').value = paramPin;
+        // Auto focus name input
+        document.getElementById('name-in').focus();
     }
+
     function init(r) {
         myRole = r;
         document.getElementById('role-select').classList.add('hidden');
         document.getElementById(r + '-area').classList.remove('hidden');
     }
+
     function join() {
         myName = document.getElementById('name-in').value.trim();
         const pin = document.getElementById('pin-in').value.trim();
@@ -189,6 +202,7 @@
         }
         socket.emit('join_request', {name: myName, pin: pin});
     }
+
     socket.on('join_received', () => {
         const loginBox = document.getElementById('user-login');
         loginBox.innerHTML = `
@@ -199,6 +213,7 @@
                 <div class="spinner-border text-primary mt-2"></div>
             </div>`;
     });
+
     socket.on('approved_success', () => {
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
@@ -208,11 +223,11 @@
             document.getElementById('q-body').innerText = "Đã được duyệt! Đang chờ câu hỏi...";
         }
     });
+
     socket.on('new_q', d => {
         clearInterval(clockInt);
-        if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = "";
-        if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = "";
-        const isMobile = window.innerWidth <= 768;
+        document.getElementById('lucky-event-display').innerText = "";
+        document.getElementById('last-pts-gain').innerText = "";
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
@@ -229,9 +244,8 @@
                 };
                 box.appendChild(btn);
             });
-            if (isMobile) {
-                document.querySelector('header').classList.add('hidden');
-                document.querySelector('footer').classList.add('hidden');
+            // Mobile mode: full screen quiz
+            if (window.innerWidth <= 768) {
                 document.body.classList.add('mobile-quiz-mode');
             }
         } else {
@@ -250,6 +264,7 @@
         }
         startCountdown();
     });
+
     function startCountdown() {
         let t = 15.0;
         clockInt = setInterval(() => {
@@ -264,17 +279,20 @@
             if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
         }, 100);
     }
+
     socket.on('score_update', d => {
         document.getElementById('my-pts').innerText = d.total;
         document.getElementById('lucky-event-display').innerText = d.event || "";
         const gainBox = document.getElementById('last-pts-gain');
         gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
+
     socket.on('lb_update', d => {
         const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><b>${p.total}</b></div>`).join('');
         if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
         if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
     });
+
     socket.on('game_over', d => {
         if(myRole === 'host') {
             document.getElementById('host-live-ui').classList.add('hidden');
@@ -285,33 +303,44 @@
             if(res[1]) document.getElementById('name-2').innerText = res[1].name;
             if(res[2]) document.getElementById('name-3').innerText = res[2].name;
             document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
+        } else if(myRole === 'user') {
+            document.getElementById('review-btn').classList.remove('hidden');
+            if (window.innerWidth <= 768) {
+                openReview();  // Auto open review on mobile after game over
+            }
         }
     });
+
     socket.on('qr_ready', d => {
         document.getElementById('qr-display').classList.remove('hidden');
         document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
         document.getElementById('pin-val').innerText = d.pin;
         document.getElementById('wait-box').innerHTML = "<b>Danh sách chờ:</b><br>";
     });
+
     socket.on('new_player_waiting', d => {
         const div = document.createElement('div');
         div.className = "lb-item";
         div.innerHTML = `<span>${d.name}</span> <span class="badge bg-primary">Chờ duyệt</span>`;
         document.getElementById('wait-box').appendChild(div);
     });
+
     function showPodium() {
         document.getElementById('host-review-section').classList.add('hidden');
         document.getElementById('host-podium-section').classList.remove('hidden');
     }
+
     socket.on('enable_review', () => {
         if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden');
     });
+
     function openReview() {
         document.getElementById('user-quiz').classList.add('hidden');
         document.getElementById('review-screen').classList.remove('hidden');
         document.getElementById('review-title').innerText = "KẾT QUẢ CHI TIẾT CỦA BẠN";
         socket.emit('get_review');
     }
+
     function backToMain() {
         document.getElementById('review-screen').classList.add('hidden');
         if (myRole === 'user') {
@@ -323,6 +352,11 @@
             }
         }
     }
+
+    function downloadPDF() {
+        window.print();
+    }
+
     socket.on('render_review', data => {
         const container = document.getElementById('review-data');
         if (!data || data.length === 0) {
@@ -375,6 +409,7 @@
         `;
         container.innerHTML = html;
     });
+
     socket.on('render_host_review', data => {
         const container = document.getElementById('host-review-data');
         container.innerHTML = data.map(it => `
@@ -403,6 +438,7 @@
             </div>
         `).join('');
     });
+
     document.getElementById('csv-file').onchange = e => {
         const reader = new FileReader();
         reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
