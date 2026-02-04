@@ -34,7 +34,20 @@
         .user-review-wrong { border-left-color: #dc3545; }
         .review-answer-list div { margin-bottom: 6px; font-size: 0.95rem; }
         .review-total { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; }
-        @media (max-width: 768px) { header { display: flex; flex-direction: column; padding: 10px; } .logo-area { margin-bottom: 5px; } .timer-circle { font-size: 2rem; } .btn-ans { padding: 12px; font-size: 0.9rem; } }
+        @media (max-width: 768px) { 
+            header { display: flex; flex-direction: column; padding: 10px; } 
+            .logo-area { margin-bottom: 5px; } 
+            .timer-circle { font-size: 2rem; } 
+            .btn-ans { padding: 12px; font-size: 0.9rem; } 
+            #user-quiz .dash-card { padding: 10px; border-radius: 0; box-shadow: none; }
+            #user-quiz .row { margin: 0; }
+            #user-quiz .col-md-8 { padding: 0; }
+            #user-quiz .col-md-4 { display: none; }
+            main { padding: 0; overflow: hidden; height: 100vh; }
+            body.mobile-quiz-mode { overflow: hidden; }
+            body.mobile-quiz-mode main { padding: 0; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-between; }
+            body.mobile-quiz-mode #user-quiz .dash-card { height: 100%; display: flex; flex-direction: column; justify-content: space-around; }
+        }
         @media print { .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; } main { overflow: visible; padding: 0; background: white; } body { overflow: visible; background: white; } .dash-card { box-shadow: none; border: 1px solid #ddd; } }
     </style>
 </head>
@@ -48,7 +61,6 @@
         <span id="display-name" class="user-tag hidden"></span>
     </div>
 </header>
-
 <main class="container">
     <div id="role-select" class="text-center py-5 no-print">
         <div class="dash-card d-inline-block px-5">
@@ -57,7 +69,6 @@
             <button class="btn btn-outline-dark btn-lg px-5" onclick="init('user')">BẢN USER</button>
         </div>
     </div>
-
     <div id="host-area" class="hidden">
         <div id="host-live-ui" class="no-print">
             <div class="row">
@@ -83,7 +94,6 @@
                 </div>
             </div>
         </div>
-
         <div id="host-end-ui" class="hidden">
             <div id="host-review-section">
                 <div class="dash-card">
@@ -95,7 +105,6 @@
                     <button class="btn btn-danger btn-lg w-100 mt-4 no-print" onclick="showPodium()">XEM VINH DANH (PODIUM)</button>
                 </div>
             </div>
-
             <div id="host-podium-section" class="hidden">
                 <div class="dash-card text-center">
                     <h1 class="orange-text">🎉 KẾT THÚC 🎉</h1>
@@ -110,14 +119,12 @@
             </div>
         </div>
     </div>
-
     <div id="user-area" class="hidden">
         <div id="user-login" class="dash-card mx-auto no-print" style="max-width: 420px;">
             <input type="text" id="name-in" class="form-control mb-3" placeholder="Nhập tên">
             <input type="number" id="pin-in" class="form-control mb-3" placeholder="Mã PIN 6 số">
             <button class="btn btn-primary w-100" onclick="join()">THAM GIA</button>
         </div>
-
         <div id="user-quiz" class="hidden no-print">
             <div class="row">
                 <div class="col-md-8">
@@ -141,7 +148,6 @@
             </div>
         </div>
     </div>
-
     <div id="review-screen" class="hidden">
         <div class="container py-4">
             <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm no-print">
@@ -155,22 +161,25 @@
         </div>
     </div>
 </main>
-
 <footer class="no-print">
     Developer: <span class="orange-text">Lại Nguyễn Minh Trí</span> | Hotline: <span class="orange-text">84-908-08-3566</span><br>
     <span class="small opacity-75">Hệ thống Trắc nghiệm Thông minh © 2026</span>
 </footer>
-
 <script>
     const socket = io();
     let myRole = "", myName = "", clockInt;
-
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramRole = urlParams.get('role');
+    const paramPin = urlParams.get('pin');
+    if (paramRole === 'user' && paramPin) {
+        init('user');
+        document.getElementById('pin-in').value = paramPin;
+    }
     function init(r) {
         myRole = r;
         document.getElementById('role-select').classList.add('hidden');
         document.getElementById(r + '-area').classList.remove('hidden');
     }
-
     function join() {
         myName = document.getElementById('name-in').value.trim();
         const pin = document.getElementById('pin-in').value.trim();
@@ -180,7 +189,6 @@
         }
         socket.emit('join_request', {name: myName, pin: pin});
     }
-
     socket.on('join_received', () => {
         const loginBox = document.getElementById('user-login');
         loginBox.innerHTML = `
@@ -191,7 +199,6 @@
                 <div class="spinner-border text-primary mt-2"></div>
             </div>`;
     });
-
     socket.on('approved_success', () => {
         if(myRole === 'user'){
             document.getElementById('user-login').classList.add('hidden');
@@ -201,12 +208,11 @@
             document.getElementById('q-body').innerText = "Đã được duyệt! Đang chờ câu hỏi...";
         }
     });
-
     socket.on('new_q', d => {
         clearInterval(clockInt);
         if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = "";
         if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = "";
-
+        const isMobile = window.innerWidth <= 768;
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
@@ -223,6 +229,11 @@
                 };
                 box.appendChild(btn);
             });
+            if (isMobile) {
+                document.querySelector('header').classList.add('hidden');
+                document.querySelector('footer').classList.add('hidden');
+                document.body.classList.add('mobile-quiz-mode');
+            }
         } else {
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('host-q-content').innerHTML = `
@@ -239,7 +250,6 @@
         }
         startCountdown();
     });
-
     function startCountdown() {
         let t = 15.0;
         clockInt = setInterval(() => {
@@ -254,20 +264,17 @@
             if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
         }, 100);
     }
-
     socket.on('score_update', d => {
         document.getElementById('my-pts').innerText = d.total;
         document.getElementById('lucky-event-display').innerText = d.event || "";
         const gainBox = document.getElementById('last-pts-gain');
         gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
-
     socket.on('lb_update', d => {
         const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><b>${p.total}</b></div>`).join('');
         if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
         if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
     });
-
     socket.on('game_over', d => {
         if(myRole === 'host') {
             document.getElementById('host-live-ui').classList.add('hidden');
@@ -280,37 +287,31 @@
             document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
         }
     });
-
     socket.on('qr_ready', d => {
         document.getElementById('qr-display').classList.remove('hidden');
         document.getElementById('qr-img').src = "data:image/png;base64," + d.qr;
         document.getElementById('pin-val').innerText = d.pin;
         document.getElementById('wait-box').innerHTML = "<b>Danh sách chờ:</b><br>";
     });
-
     socket.on('new_player_waiting', d => {
         const div = document.createElement('div');
         div.className = "lb-item";
         div.innerHTML = `<span>${d.name}</span> <span class="badge bg-primary">Chờ duyệt</span>`;
         document.getElementById('wait-box').appendChild(div);
     });
-
     function showPodium() {
         document.getElementById('host-review-section').classList.add('hidden');
         document.getElementById('host-podium-section').classList.remove('hidden');
     }
-
     socket.on('enable_review', () => {
         if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden');
     });
-
     function openReview() {
         document.getElementById('user-quiz').classList.add('hidden');
         document.getElementById('review-screen').classList.remove('hidden');
         document.getElementById('review-title').innerText = "KẾT QUẢ CHI TIẾT CỦA BẠN";
         socket.emit('get_review');
     }
-
     function backToMain() {
         document.getElementById('review-screen').classList.add('hidden');
         if (myRole === 'user') {
@@ -322,20 +323,17 @@
             }
         }
     }
-
     socket.on('render_review', data => {
         const container = document.getElementById('review-data');
         if (!data || data.length === 0) {
             container.innerHTML = '<div class="alert alert-info text-center">Chưa có dữ liệu bài làm.</div>';
             return;
         }
-
         let html = '';
         data.forEach(it => {
             const isCorrect = it.pts > 0;
             const cardClass = isCorrect ? 'user-review-correct' : 'user-review-wrong';
             const ansClass = isCorrect ? 'text-success fw-bold' : 'text-danger fw-bold';
-
             html += `
             <div class="dash-card user-review-card ${cardClass}">
                 <h5 class="fw-bold mb-3">Câu ${it.idx}: ${it.q}</h5>
@@ -368,7 +366,6 @@
                 </div>
             </div>`;
         });
-
         const total = data.reduce((sum, q) => sum + (q.pts || 0), 0);
         html += `
             <div class="dash-card text-center p-4 review-total mt-5 shadow">
@@ -376,10 +373,8 @@
                 <h1 class="display-3 fw-bold">${total}đ</h1>
             </div>
         `;
-
         container.innerHTML = html;
     });
-
     socket.on('render_host_review', data => {
         const container = document.getElementById('host-review-data');
         container.innerHTML = data.map(it => `
@@ -408,7 +403,6 @@
             </div>
         `).join('');
     });
-
     document.getElementById('csv-file').onchange = e => {
         const reader = new FileReader();
         reader.onload = () => socket.emit('host_upload_file', {content: reader.result});
