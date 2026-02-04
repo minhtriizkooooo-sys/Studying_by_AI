@@ -34,26 +34,26 @@
         .user-review-wrong { border-left-color: #dc3545; }
         .review-answer-list div { margin-bottom: 6px; font-size: 0.95rem; }
         .review-total { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; }
-        @media (max-width: 768px) { 
-            header, footer { display: none !important; } 
-            main { padding: 0; height: 100vh; overflow: hidden; }
-            .dash-card { margin: 0; border-radius: 0; box-shadow: none; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; }
+        @media (max-width: 768px) {
             .timer-circle { font-size: 2.5rem; }
             .btn-ans { padding: 14px; font-size: 1rem; margin-bottom: 10px; }
-            #user-quiz .row { margin: 0; height: 100%; }
-            #user-quiz .col-md-8 { width: 100%; padding: 0; }
-            #user-quiz .col-md-4 { display: none; }
-            body.mobile-quiz-mode main { display: block; }
+            body.quiz-active header.no-print,
+            body.quiz-active footer.no-print { display: none !important; }
+            body.quiz-active main { padding: 0; overflow: hidden; height: 100vh; }
+            body.quiz-active .dash-card { margin: 0; border-radius: 0; box-shadow: none; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 15px; }
+            body.quiz-active #user-quiz .row { margin: 0; height: 100%; }
+            body.quiz-active #user-quiz .col-md-8 { width: 100%; padding: 0; }
+            body.quiz-active #user-quiz .col-md-4 { display: none; }
         }
-        @media print { 
-            .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login, #download-pdf-btn { display: none !important; }
+        @media print {
+            .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; }
             main { padding: 0; background: white; overflow: visible; }
             body { margin: 0; background: white; }
-            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 15px; }
+            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 20px; }
             .user-review-card { page-break-inside: avoid; }
             .review-total { page-break-before: always; }
             #review-screen { padding: 10px; }
-            @page { margin: 10mm; size: A4 portrait; }
+            @page { margin: 12mm; size: A4 portrait; }
         }
     </style>
 </head>
@@ -159,7 +159,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm no-print">
                 <h2 class="m-0 text-navy" id="review-title">KẾT QUẢ CHI TIẾT CỦA BẠN</h2>
                 <div>
-                    <button class="btn btn-success me-2" id="print-btn" onclick="downloadPDF()">TẢI PDF KẾT QUẢ</button>
+                    <button class="btn btn-success me-2" onclick="window.print()">TẢI PDF KẾT QUẢ</button>
                     <button class="btn btn-secondary" onclick="backToMain()">THOÁT</button>
                 </div>
             </div>
@@ -176,14 +176,12 @@
     const socket = io();
     let myRole = "", myName = "", clockInt;
 
-    // Auto-detect from URL (QR scan)
     const urlParams = new URLSearchParams(window.location.search);
     const paramRole = urlParams.get('role');
     const paramPin = urlParams.get('pin');
     if (paramRole === 'user' && paramPin && paramPin.length === 6) {
         init('user');
         document.getElementById('pin-in').value = paramPin;
-        // Auto focus name input
         document.getElementById('name-in').focus();
     }
 
@@ -196,7 +194,7 @@
     function join() {
         myName = document.getElementById('name-in').value.trim();
         const pin = document.getElementById('pin-in').value.trim();
-        if(!myName || pin.length !== 6) {
+        if (!myName || pin.length !== 6) {
             alert("Vui lòng nhập tên và mã PIN gồm 6 chữ số!");
             return;
         }
@@ -215,7 +213,7 @@
     });
 
     socket.on('approved_success', () => {
-        if(myRole === 'user'){
+        if (myRole === 'user') {
             document.getElementById('user-login').classList.add('hidden');
             document.getElementById('user-quiz').classList.remove('hidden');
             document.getElementById('display-name').innerText = "👤 " + myName;
@@ -226,12 +224,14 @@
 
     socket.on('new_q', d => {
         clearInterval(clockInt);
-        document.getElementById('lucky-event-display').innerText = "";
-        document.getElementById('last-pts-gain').innerText = "";
+        if (document.getElementById('lucky-event-display')) document.getElementById('lucky-event-display').innerText = "";
+        if (document.getElementById('last-pts-gain')) document.getElementById('last-pts-gain').innerText = "";
+
         if (myRole === 'user') {
             document.getElementById('q-meta').innerText = `CÂU ${d.idx}/${d.total}`;
             document.getElementById('q-body').innerText = d.q['Câu hỏi'];
-            const box = document.getElementById('ans-list'); box.innerHTML = '';
+            const box = document.getElementById('ans-list');
+            box.innerHTML = '';
             ['A','B','C','D'].forEach(l => {
                 const btn = document.createElement('button');
                 btn.className = 'btn-ans';
@@ -244,9 +244,10 @@
                 };
                 box.appendChild(btn);
             });
-            // Mobile mode: full screen quiz
+
+            // Ẩn header & footer chỉ khi bắt đầu thi (có câu hỏi)
             if (window.innerWidth <= 768) {
-                document.body.classList.add('mobile-quiz-mode');
+                document.body.classList.add('quiz-active');
             }
         } else {
             document.getElementById('start-btn').classList.add('hidden');
@@ -272,41 +273,44 @@
             if (t <= 0) {
                 t = 0;
                 clearInterval(clockInt);
-                if(myRole==='host') socket.emit('times_up');
+                if (myRole === 'host') socket.emit('times_up');
             }
             const val = t.toFixed(1);
-            if(document.getElementById('clock')) document.getElementById('clock').innerText = val;
-            if(document.getElementById('host-clock')) document.getElementById('host-clock').innerText = val;
+            document.getElementById('clock')?.innerText = val;
+            document.getElementById('host-clock')?.innerText = val;
         }, 100);
     }
 
     socket.on('score_update', d => {
         document.getElementById('my-pts').innerText = d.total;
         document.getElementById('lucky-event-display').innerText = d.event || "";
-        const gainBox = document.getElementById('last-pts-gain');
-        gainBox.innerHTML = d.correct ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
+        document.getElementById('last-pts-gain').innerHTML = d.correct 
+            ? `<span class="text-success h4">ĐÚNG RỒI! +${d.last}đ</span>` 
+            : `<span class="text-danger h4">SAI RỒI! +0đ</span>`;
     });
 
     socket.on('lb_update', d => {
         const html = d.map((p,i) => `<div class="lb-item"><span>${i+1}. ${p.name}</span><b>${p.total}</b></div>`).join('');
-        if(document.getElementById('host-lb')) document.getElementById('host-lb').innerHTML = html;
-        if(document.getElementById('user-lb')) document.getElementById('user-lb').innerHTML = html;
+        document.getElementById('host-lb')?.innerHTML = html;
+        document.getElementById('user-lb')?.innerHTML = html;
     });
 
     socket.on('game_over', d => {
-        if(myRole === 'host') {
+        if (myRole === 'host') {
             document.getElementById('host-live-ui').classList.add('hidden');
             document.getElementById('host-end-ui').classList.remove('hidden');
             socket.emit('get_host_review');
             const res = d.results;
-            if(res[0]) document.getElementById('name-1').innerText = res[0].name;
-            if(res[1]) document.getElementById('name-2').innerText = res[1].name;
-            if(res[2]) document.getElementById('name-3').innerText = res[2].name;
-            document.getElementById('final-stats-list').innerHTML = res.map((p,i)=>`<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`).join('');
-        } else if(myRole === 'user') {
+            if (res[0]) document.getElementById('name-1').innerText = res[0].name;
+            if (res[1]) document.getElementById('name-2').innerText = res[1].name;
+            if (res[2]) document.getElementById('name-3').innerText = res[2].name;
+            document.getElementById('final-stats-list').innerHTML = res.map((p,i) => 
+                `<div class="lb-item"><span>#${i+1} ${p.name}</span><b>${p.total}đ</b></div>`
+            ).join('');
+        } else if (myRole === 'user') {
             document.getElementById('review-btn').classList.remove('hidden');
             if (window.innerWidth <= 768) {
-                openReview();  // Auto open review on mobile after game over
+                openReview();
             }
         }
     });
@@ -331,7 +335,7 @@
     }
 
     socket.on('enable_review', () => {
-        if(myRole === 'user') document.getElementById('review-btn').classList.remove('hidden');
+        if (myRole === 'user') document.getElementById('review-btn').classList.remove('hidden');
     });
 
     function openReview() {
@@ -345,16 +349,16 @@
         document.getElementById('review-screen').classList.add('hidden');
         if (myRole === 'user') {
             document.getElementById('user-quiz').classList.remove('hidden');
+            // Nếu muốn hiện lại header/footer khi thoát review trên mobile (tùy chọn)
+            if (window.innerWidth <= 768) {
+                document.body.classList.remove('quiz-active');
+            }
         } else {
             document.getElementById('host-end-ui').classList.remove('hidden');
             if (document.getElementById('host-podium-section').classList.contains('hidden')) {
                 document.getElementById('host-review-section').classList.remove('hidden');
             }
         }
-    }
-
-    function downloadPDF() {
-        window.print();
     }
 
     socket.on('render_review', data => {
@@ -379,25 +383,12 @@
                 </div>
                 <hr class="my-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div>
-                        <strong>Bạn chọn:</strong> <span class="${ansClass} fs-5">${it.u || 'Không chọn'}</span>
-                    </div>
-                    <div class="fs-4 fw-bold ${ansClass}">
-                        ${it.pts > 0 ? '+' : ''}${it.pts}đ
-                    </div>
+                    <div><strong>Bạn chọn:</strong> <span class="${ansClass} fs-5">${it.u || 'Không chọn'}</span></div>
+                    <div class="fs-4 fw-bold ${ansClass}">${it.pts > 0 ? '+' : ''}${it.pts}đ</div>
                 </div>
-                <div class="mb-2">
-                    <strong>Đáp án đúng:</strong> <span class="text-success fw-bold">${it.c}</span>
-                </div>
-                ${it.event ? `
-                    <div class="alert alert-warning p-2 mb-3">
-                        <strong>Sự kiện đặc biệt:</strong> ${it.event}
-                    </div>
-                ` : ''}
-                <div>
-                    <strong>Giải thích:</strong>
-                    <div class="bg-light p-3 rounded mt-2">${it.ex || 'Không có giải thích.'}</div>
-                </div>
+                <div class="mb-2"><strong>Đáp án đúng:</strong> <span class="text-success fw-bold">${it.c}</span></div>
+                ${it.event ? `<div class="alert alert-warning p-2 mb-3"><strong>Sự kiện đặc biệt:</strong> ${it.event}</div>` : ''}
+                <div><strong>Giải thích:</strong><div class="bg-light p-3 rounded mt-2">${it.ex || 'Không có giải thích.'}</div></div>
             </div>`;
         });
         const total = data.reduce((sum, q) => sum + (q.pts || 0), 0);
@@ -426,9 +417,7 @@
                     ${it.users.map(u => `
                         <div class="lb-item">
                             <span><strong>${u.name}</strong> chọn: <b>${u.ans}</b></span>
-                            <span>Điểm: <b class="${u.pts > 0 ? 'text-success' : 'text-danger'}">
-                                ${u.pts > 0 ? '+' + u.pts : u.pts}đ
-                            </b></span>
+                            <span>Điểm: <b class="${u.pts > 0 ? 'text-success' : 'text-danger'}">${u.pts > 0 ? '+' + u.pts : u.pts}đ</b></span>
                         </div>
                     `).join('')}
                 </div>
