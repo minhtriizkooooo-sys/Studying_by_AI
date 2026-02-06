@@ -6,7 +6,6 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'marie_curie_smart_edu'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-
 game_state = {
     "all_questions": [],
     "current_round_qs": [],
@@ -20,11 +19,9 @@ game_state = {
     "leader_sid": None,
     "fastest_sid_this_round": None
 }
-
 @app.route('/')
-def index(): 
+def index():
     return render_template('index.html')
-
 @app.route('/template')
 def download_template():
     data = {
@@ -37,7 +34,6 @@ def download_template():
         df.to_excel(writer, index=False)
     output.seek(0)
     return send_file(output, as_attachment=True, download_name="TEMPLATE_QUIZ.xlsx")
-
 @socketio.on('host_upload_file')
 def handle_upload(data):
     try:
@@ -56,7 +52,6 @@ def handle_upload(data):
         emit('qr_ready', {'qr': base64.b64encode(buf.getvalue()).decode('utf-8'), 'pin': game_state['pin']})
     except:
         emit('error', {'msg': "Lỗi file Excel!"})
-
 @socketio.on('join_request')
 def join(data):
     name, pin = data.get('name', '').strip(), data.get('pin')
@@ -64,20 +59,17 @@ def join(data):
         game_state['players'][request.sid] = {"name": name, "total": 0, "history": [], "approved": False}
         socketio.emit('new_player_waiting', {'name': name})
         emit('join_received')
-
 @socketio.on('approve_all')
 def approve_all():
     for sid in game_state['players']:
         game_state['players'][sid]['approved'] = True
     socketio.emit('approved_success')
-
 @socketio.on('start_next_round')
 def start_round():
     if not game_state['all_questions']: return
     qs = random.sample(game_state['all_questions'], min(10, len(game_state['all_questions'])))
     game_state.update({"current_round_qs": qs, "active_q_idx": 0, "is_running": True})
     send_q()
-
 def send_q():
     idx = game_state['active_q_idx']
     if idx >= len(game_state['current_round_qs']):
@@ -94,7 +86,6 @@ def send_q():
     game_state['leader_sid'] = players_list[0][0] if players_list and players_list[0][1]['total'] > 0 else None
     q_data = game_state['current_round_qs'][idx]
     socketio.emit('new_q', {'q': q_data, 'idx': idx + 1, 'total': len(game_state['current_round_qs'])})
-
 @socketio.on('submit_ans')
 def handle_sub(data):
     sid = request.sid
@@ -143,7 +134,6 @@ def handle_sub(data):
         next_question_auto()
     else:
         update_lb()
-
 @socketio.on('times_up')
 def handle_timeout():
     idx = game_state['active_q_idx']
@@ -169,21 +159,17 @@ def handle_timeout():
                 "correct_key": correct_key
             })
     next_question_auto()
-
 def next_question_auto():
     if game_state['is_running']:
         game_state['active_q_idx'] += 1
         send_q()
-
 def update_lb():
     lb = sorted([{"name": p['name'], "total": p['total']} for p in game_state['players'].values() if p['approved']], key=lambda x: x['total'], reverse=True)
     socketio.emit('lb_update', lb)
-
 @socketio.on('get_review')
 def get_review():
     if request.sid in game_state['players']:
         emit('render_review', game_state['players'][request.sid]['history'])
-
 @socketio.on('get_host_review')
 def get_host_review():
     report = []
@@ -210,6 +196,5 @@ def get_host_review():
             "users": user_details
         })
     emit('render_host_review', report)
-
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
