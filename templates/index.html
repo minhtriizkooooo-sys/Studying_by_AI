@@ -9,9 +9,9 @@
     <style>
         :root { --navy: #001f3f; --orange: #FF4500; }
         html, body { height: 100%; margin: 0; display: flex; flex-direction: column; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
-        .logo-area img { height: 45px; width: auto; }
-        .user-tag { background: var(--orange); padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        header { background: var(--navy); color: white; padding: 10px 40px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; border-bottom: 5px solid var(--orange); flex-shrink: 0; }
+        .logo-area img { max-height: 45px; max-width: 150px; width: auto; }
+        .user-tag { background: var(--orange); padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; white-space: normal; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
         main { flex: 1; padding: 25px; overflow-y: auto; -webkit-overflow-scrolling: touch; -ms-overflow-style: none; scrollbar-width: none; }
         main::-webkit-scrollbar { display: none; }
         footer { background: var(--navy); color: white; padding: 15px; text-align: center; border-top: 4px solid var(--orange); flex-shrink: 0; font-size: 0.9rem; }
@@ -36,6 +36,9 @@
         .review-answer-list div { margin-bottom: 6px; font-size: 0.95rem; }
         .review-total { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; }
         @media (max-width: 768px) {
+            header { padding: 10px 20px; }
+            .logo-area img { max-height: 35px; max-width: 100px; }
+            .user-tag { font-size: 0.8rem; padding: 4px 10px; max-width: 120px; }
             .timer-circle { font-size: 2.5rem; }
             .btn-ans { padding: 14px; font-size: 1rem; margin-bottom: 10px; }
             body.quiz-active header,
@@ -50,24 +53,26 @@
             .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; }
             main { padding: 0; background: white; overflow: visible; }
             body { margin: 0; background: white; }
-            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 10px; padding: 10px; }
-            .user-review-card { page-break-inside: avoid; margin-bottom: 10px; padding-left: 10px; }
+            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 5px; padding: 5px; }
+            .user-review-card { page-break-inside: avoid; margin-bottom: 5px; padding-left: 5px; }
             .review-total { page-break-before: always; }
-            @page { margin: 10mm; size: A4 portrait; }
-            h3 { font-size: 16pt; }
-            h5 { font-size: 12pt; }
-            .small { font-size: 10pt; }
-            div { font-size: 11pt; }
-            hr { margin: 5px 0; }
-            .mt-3, .my-3 { margin: 5px 0; }
-            .p-2, .p-3 { padding: 5px; }
-            .mb-4 { margin-bottom: 10px; }
-            .mb-3 { margin-bottom: 5px; }
-            .mb-2 { margin-bottom: 5px; }
-            .review-answer-list div { margin-bottom: 3px; font-size: 10pt; }
-            .alert { padding: 5px; margin-bottom: 5px; }
-            .review-total { padding: 10px; font-size: 14pt; }
+            @page { margin: 5mm; size: A4 portrait; }
+            h3 { font-size: 12pt; }
+            h5 { font-size: 10pt; }
+            .small { font-size: 8pt; }
+            div, p, span { font-size: 9pt; }
+            hr { margin: 3px 0; }
+            .mt-3, .my-3 { margin: 3px 0 !important; }
+            .p-2, .p-3 { padding: 3px !important; }
+            .mb-4 { margin-bottom: 5px !important; }
+            .mb-3 { margin-bottom: 3px !important; }
+            .mb-2 { margin-bottom: 3px !important; }
+            .review-answer-list div { margin-bottom: 2px; font-size: 8pt; }
+            .alert { padding: 3px; margin-bottom: 3px; }
+            .review-total { padding: 5px; font-size: 12pt; }
             #review-screen, #host-review-data { overflow: visible; height: auto; }
+            .border-start { border-left: 3px solid !important; }
+            .lb-item { padding: 2px 0; font-size: 8pt; }
         }
     </style>
 </head>
