@@ -35,6 +35,7 @@
         .user-review-wrong { border-left-color: #dc3545; }
         .review-answer-list div { margin-bottom: 6px; font-size: 0.95rem; }
         .review-total { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; }
+        #review-screen { height: 100%; overflow-y: auto; }
         @media (max-width: 768px) {
             header { padding: 10px 20px; }
             .logo-area img { max-height: 35px; max-width: 100px; }
@@ -48,31 +49,37 @@
             body.quiz-active #user-quiz .row { margin: 0; height: 100%; }
             body.quiz-active #user-quiz .col-md-8 { width: 100%; padding: 0; }
             body.quiz-active #user-quiz .col-md-4 { display: none; }
+            #review-screen .container { padding: 10px; }
+            main { padding: 10px; }
+            .dash-card { padding: 10px; margin-bottom: 10px; }
+            .user-review-card { margin-bottom: 15px; }
         }
         @media print {
             .no-print, header, footer, #role-select, #host-live-ui, #user-quiz, #user-login { display: none !important; }
-            main { padding: 0; background: white; overflow: visible; }
-            body { margin: 0; background: white; }
-            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 5px; padding: 5px; }
-            .user-review-card { page-break-inside: avoid; margin-bottom: 5px; padding-left: 5px; }
-            .review-total { page-break-before: always; }
-            @page { margin: 5mm; size: A4 portrait; }
-            h3 { font-size: 12pt; }
-            h5 { font-size: 10pt; }
-            .small { font-size: 8pt; }
-            div, p, span { font-size: 9pt; }
-            hr { margin: 3px 0; }
-            .mt-3, .my-3 { margin: 3px 0 !important; }
-            .p-2, .p-3 { padding: 3px !important; }
-            .mb-4 { margin-bottom: 5px !important; }
-            .mb-3 { margin-bottom: 3px !important; }
-            .mb-2 { margin-bottom: 3px !important; }
-            .review-answer-list div { margin-bottom: 2px; font-size: 8pt; }
-            .alert { padding: 3px; margin-bottom: 3px; }
-            .review-total { padding: 5px; font-size: 12pt; }
-            #review-screen, #host-review-data { overflow: visible; height: auto; }
+            main { padding: 0; background: white; overflow: visible; height: auto !important; }
+            body { margin: 0; background: white; overflow: visible !important; height: auto !important; }
+            .dash-card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 2px; padding: 4px; font-size: 8pt; }
+            .user-review-card { page-break-inside: avoid; margin-bottom: 2px; padding-left: 4px; border-left-width: 3px; }
+            .review-total { page-break-before: always; padding: 5px; }
+            @page { margin: 2mm; size: A4 portrait; }
+            h3 { font-size: 10pt; margin: 2px 0; }
+            h5 { font-size: 8pt; margin: 2px 0; }
+            .small { font-size: 7pt; }
+            div, p, span, strong { font-size: 8pt; line-height: 1.1; }
+            hr { margin: 2px 0; height: 1px; }
+            .mt-3, .my-3, .mt-2, .mb-3, .mb-2, .mb-4 { margin: 2px 0 !important; }
+            .p-2, .p-3, .p-4 { padding: 2px !important; }
+            .review-answer-list div { margin-bottom: 1px; font-size: 7pt; }
+            .alert { padding: 2px; margin-bottom: 2px; font-size: 7pt; }
+            .review-total h4 { font-size: 9pt; margin-bottom: 1px; }
+            .review-total h1 { font-size: 14pt; }
+            #review-screen, #host-review-data, #host-end-ui, #host-review-section { overflow: visible !important; height: auto !important; padding: 0; margin: 0; }
+            .container { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: none !important; }
+            .d-flex { display: block !important; }
+            .lb-item { padding: 1px 0; font-size: 7pt; }
             .border-start { border-left: 3px solid !important; }
-            .lb-item { padding: 2px 0; font-size: 8pt; }
+            .shadow, .rounded { box-shadow: none !important; border-radius: 0 !important; }
+            .bg-light { background: #f8f8f8 !important; }
         }
     </style>
 </head>
@@ -340,11 +347,17 @@
         document.getElementById('review-screen').classList.remove('hidden');
         document.getElementById('review-title').innerText = "KẾT QUẢ CHI TIẾT CỦA BẠN";
         socket.emit('get_review');
+        if (window.innerWidth <= 768) {
+            document.body.classList.remove('quiz-active');
+        }
     }
     function backToMain() {
         document.getElementById('review-screen').classList.add('hidden');
         if (myRole === 'user') {
             document.getElementById('user-quiz').classList.remove('hidden');
+            if (window.innerWidth <= 768) {
+                document.body.classList.add('quiz-active');
+            }
         } else {
             document.getElementById('host-end-ui').classList.remove('hidden');
             if (document.getElementById('host-podium-section').classList.contains('hidden')) {
